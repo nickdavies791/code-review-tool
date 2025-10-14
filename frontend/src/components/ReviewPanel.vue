@@ -15,6 +15,7 @@ const prDetails = ref(null)
 const showModal = ref(false)
 const activeTab = ref('actionable')
 const modalActiveTab = ref('actionable')
+const showRawContent = ref(false)
 
 const openModal = () => {
   showModal.value = true
@@ -197,9 +198,38 @@ watch(() => props.pr, () => {
             <span>•</span>
             <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
           </div>
-          <button class="btn-secondary" @click="openModal">
-            View Full Review
-          </button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn-secondary btn-small" @click="showRawContent = !showRawContent" title="Toggle raw content for debugging">
+              {{ showRawContent ? 'Hide Raw' : 'Show Raw' }}
+            </button>
+            <button class="btn-secondary" @click="openModal">
+              View Full Review
+            </button>
+          </div>
+        </div>
+
+        <!-- Truncation Warning -->
+        <div v-if="review.truncated" class="truncation-warning">
+          <strong>⚠️ Warning:</strong> This review was cut off due to length limits.
+          The AI response exceeded the maximum token limit. Consider reviewing a smaller PR or running the review again.
+          <span v-if="review.finishReason"> (Reason: {{ review.finishReason }})</span>
+        </div>
+
+        <!-- Missing Sections Warning -->
+        <div v-else-if="review.hasAllSections === false" class="truncation-warning" style="background: rgba(251, 146, 60, 0.1); border-color: #fb923c;">
+          <strong>⚠️ Notice:</strong> Some sections may be missing from this review.
+          This could mean the AI didn't find issues in those areas, or the response was incomplete.
+        </div>
+
+        <!-- Raw Content Debug View -->
+        <div v-if="showRawContent" class="raw-content-debug">
+          <h4>Raw AI Response (for debugging):</h4>
+          <div class="debug-meta">
+            <span><strong>Truncated:</strong> {{ review.truncated ? 'Yes' : 'No' }}</span>
+            <span v-if="review.finishReason"><strong>Finish Reason:</strong> {{ review.finishReason }}</span>
+            <span><strong>Has All Sections:</strong> {{ review.hasAllSections ? 'Yes' : 'No' }}</span>
+          </div>
+          <pre>{{ review.content }}</pre>
         </div>
 
         <!-- Tabs -->
@@ -236,10 +266,31 @@ watch(() => props.pr, () => {
 
         <!-- Tab Content -->
         <div class="tab-content">
-          <div v-if="activeTab === 'actionable'" class="review-content" v-html="actionableHtml"></div>
-          <div v-if="activeTab === 'quality'" class="review-content" v-html="qualityHtml"></div>
-          <div v-if="activeTab === 'highlights'" class="review-content" v-html="highlightsHtml"></div>
-          <div v-if="activeTab === 'summary'" class="review-content" v-html="summaryHtml"></div>
+          <div v-if="activeTab === 'actionable'">
+            <div v-if="actionableHtml" class="review-content" v-html="actionableHtml"></div>
+            <div v-else class="tab-empty">
+              <p>No actionable items found in this section.</p>
+              <p class="tab-empty-hint">The AI may have included this content in another section, or there may be no critical issues.</p>
+            </div>
+          </div>
+          <div v-if="activeTab === 'quality'">
+            <div v-if="qualityHtml" class="review-content" v-html="qualityHtml"></div>
+            <div v-else class="tab-empty">
+              <p>No code quality analysis found in this section.</p>
+            </div>
+          </div>
+          <div v-if="activeTab === 'highlights'">
+            <div v-if="highlightsHtml" class="review-content" v-html="highlightsHtml"></div>
+            <div v-else class="tab-empty">
+              <p>No positive highlights found in this section.</p>
+            </div>
+          </div>
+          <div v-if="activeTab === 'summary'">
+            <div v-if="summaryHtml" class="review-content" v-html="summaryHtml"></div>
+            <div v-else class="tab-empty">
+              <p>No summary found in this section.</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -300,10 +351,31 @@ watch(() => props.pr, () => {
 
             <!-- Modal Tab Content -->
             <div class="tab-content">
-              <div v-if="modalActiveTab === 'actionable'" class="review-content" v-html="actionableHtml"></div>
-              <div v-if="modalActiveTab === 'quality'" class="review-content" v-html="qualityHtml"></div>
-              <div v-if="modalActiveTab === 'highlights'" class="review-content" v-html="highlightsHtml"></div>
-              <div v-if="modalActiveTab === 'summary'" class="review-content" v-html="summaryHtml"></div>
+              <div v-if="modalActiveTab === 'actionable'">
+                <div v-if="actionableHtml" class="review-content" v-html="actionableHtml"></div>
+                <div v-else class="tab-empty">
+                  <p>No actionable items found in this section.</p>
+                  <p class="tab-empty-hint">The AI may have included this content in another section, or there may be no critical issues.</p>
+                </div>
+              </div>
+              <div v-if="modalActiveTab === 'quality'">
+                <div v-if="qualityHtml" class="review-content" v-html="qualityHtml"></div>
+                <div v-else class="tab-empty">
+                  <p>No code quality analysis found in this section.</p>
+                </div>
+              </div>
+              <div v-if="modalActiveTab === 'highlights'">
+                <div v-if="highlightsHtml" class="review-content" v-html="highlightsHtml"></div>
+                <div v-else class="tab-empty">
+                  <p>No positive highlights found in this section.</p>
+                </div>
+              </div>
+              <div v-if="modalActiveTab === 'summary'">
+                <div v-if="summaryHtml" class="review-content" v-html="summaryHtml"></div>
+                <div v-else class="tab-empty">
+                  <p>No summary found in this section.</p>
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -423,6 +495,81 @@ watch(() => props.pr, () => {
   cursor: not-allowed;
 }
 
+.btn-small {
+  padding: 0.5rem 1rem !important;
+  font-size: 0.8rem !important;
+}
+
+.truncation-warning {
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 2px solid #fecaca;
+  border-radius: 12px;
+  color: #dc2626;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.truncation-warning strong {
+  font-weight: 700;
+}
+
+.raw-content-debug {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+}
+
+.raw-content-debug h4 {
+  margin: 0 0 1rem 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.debug-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.debug-meta span {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.debug-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.raw-content-debug pre {
+  margin: 0;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 .tabs {
   display: flex;
   gap: 0.5rem;
@@ -456,6 +603,23 @@ watch(() => props.pr, () => {
 
 .tab-content {
   min-height: 400px;
+}
+
+.tab-empty {
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.tab-empty p {
+  margin: 0.5rem 0;
+  font-size: 1rem;
+}
+
+.tab-empty-hint {
+  font-size: 0.875rem !important;
+  color: var(--text-muted);
+  opacity: 0.8;
 }
 
 .review-content {

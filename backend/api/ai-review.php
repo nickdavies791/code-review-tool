@@ -3,24 +3,27 @@
 use GuzzleHttp\Client;
 
 function handleAIReview() {
+    // Increase execution time limit for AI requests (can take 60-120 seconds)
+    set_time_limit(180); // 3 minutes
+
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     $pr_data = $input['pr'] ?? null;
-    
+
     if (!$pr_data) {
         http_response_code(400);
         echo json_encode(['error' => 'PR data required']);
         return;
     }
-    
+
     $api_key = $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY');
-    
+
     if (!$api_key) {
         http_response_code(500);
         echo json_encode(['error' => 'GEMINI_API_KEY not configured']);
         return;
     }
-    
+
     try {
         $review = generateGeminiReview($pr_data, $api_key);
         echo json_encode(['review' => $review]);
@@ -31,15 +34,18 @@ function handleAIReview() {
 }
 
 function generateGeminiReview($pr_data, $api_key) {
-    $client = new Client();
-    
+    $client = new Client([
+        'timeout' => 120,  // 2 minutes for the HTTP request
+        'connect_timeout' => 10  // 10 seconds to establish connection
+    ]);
+
     // Build the prompt for Gemini
     $prompt = buildReviewPrompt($pr_data);
-    
+
     // Using Gemini 2.5 Flash
     $model = 'gemini-2.5-flash';
     $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
-    
+
     $response = $client->post($url, [
         'headers' => [
             'Content-Type' => 'application/json',
@@ -55,7 +61,7 @@ function generateGeminiReview($pr_data, $api_key) {
             ],
             'generationConfig' => [
                 'temperature' => 0.3,
-                'maxOutputTokens' => 4096,
+                'maxOutputTokens' => 8192,  // Increased for longer reviews
                 'thinkingConfig' => [
                     'thinkingBudget' => 8192  // Allow thinking for accurate diff interpretation
                 ]
@@ -64,13 +70,36 @@ function generateGeminiReview($pr_data, $api_key) {
     ]);
     
     $result = json_decode($response->getBody()->getContents(), true);
-    
+
     $reviewText = $result['candidates'][0]['content']['parts'][0]['text'] ?? 'No review generated';
-    
+
+    // Check if response was truncated
+    $finishReason = $result['candidates'][0]['finishReason'] ?? null;
+    $wasTruncated = false;
+
+    if ($finishReason === 'MAX_TOKENS' || $finishReason === 'RECITATION') {
+        $wasTruncated = true;
+        error_log("Gemini response was truncated. Finish reason: " . $finishReason);
+    }
+
+    // Check if we have all required sections
+    $hasAllSections =
+        strpos($reviewText, '## SECTION: ACTIONABLE_ITEMS') !== false &&
+        strpos($reviewText, '## SECTION: CODE_QUALITY') !== false &&
+        strpos($reviewText, '## SECTION: POSITIVE_HIGHLIGHTS') !== false &&
+        strpos($reviewText, '## SECTION: SUMMARY') !== false;
+
+    if (!$hasAllSections && !$wasTruncated) {
+        error_log("Warning: Review is missing some sections");
+    }
+
     return [
         'content' => $reviewText,
         'model' => $model,
-        'timestamp' => date('c')
+        'timestamp' => date('c'),
+        'truncated' => $wasTruncated,
+        'finishReason' => $finishReason,
+        'hasAllSections' => $hasAllSections
     ];
 }
 
