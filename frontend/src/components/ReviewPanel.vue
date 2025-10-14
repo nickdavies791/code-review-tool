@@ -38,7 +38,7 @@ const generateReview = async () => {
     const reviewResponse = await axios.post('/api/review', {
       pr: prDetails.value
     })
-    
+
     review.value = reviewResponse.data.review
   } catch (err) {
     error.value = err.response?.data?.error || 'Failed to generate review'
@@ -101,6 +101,75 @@ watch(() => props.pr, () => {
 </template>
 
 <style scoped>
+.review-panel {
+  background: var(--bg-card);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px var(--shadow);
+  overflow: hidden;
+}
+
+.review-header {
+  padding: 2rem 2.5rem;
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.review-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+
+.review-body {
+  padding: 2.5rem;
+  background: var(--bg-card);
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+}
+
+.review-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.review-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.review-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+
+.review-body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.review-meta {
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  margin-bottom: 2.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+}
+
+.review-content {
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
 .review-content :deep(h1) {
   font-size: 2rem;
   margin: 2.5rem 0 1.25rem;
@@ -112,7 +181,7 @@ watch(() => props.pr, () => {
 .review-content :deep(h2) {
   font-size: 1.5rem;
   margin: 2rem 0 1rem;
-  color: var(--primary-light);
+  color: var(--primary);
   font-weight: 700;
   padding-bottom: 0.75rem;
   border-bottom: 2px solid var(--border);
@@ -134,21 +203,22 @@ watch(() => props.pr, () => {
 
 .review-content :deep(code) {
   background: var(--bg-tertiary);
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
   font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
   font-size: 0.875em;
   color: var(--primary);
   border: 1px solid var(--border);
+  font-weight: 500;
 }
 
 .review-content :deep(pre) {
   background: var(--bg-tertiary);
   padding: 1.5rem;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow-x: auto;
   margin: 1.5rem 0;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
 }
 
 .review-content :deep(pre code) {
@@ -215,10 +285,10 @@ watch(() => props.pr, () => {
 
 .review-content :deep(blockquote) {
   border-left: 4px solid var(--primary);
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.75rem;
   margin: 1.5rem 0;
   background: var(--bg-tertiary);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 12px 12px 0;
   color: var(--text-secondary);
 }
 
@@ -233,21 +303,22 @@ watch(() => props.pr, () => {
   border-collapse: collapse;
   margin: 1.5rem 0;
   background: var(--bg-tertiary);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
+  border: 2px solid var(--border);
 }
 
 .review-content :deep(th) {
   background: var(--bg-hover);
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1.25rem;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   border-bottom: 2px solid var(--border);
 }
 
 .review-content :deep(td) {
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1.25rem;
   border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
 }
