@@ -12,6 +12,9 @@ const userRepos = ref([])
 const loadingRepos = ref(false)
 const searchQuery = ref('')
 const showDropdown = ref(false)
+const showHistoryModal = ref(false)
+const savedReviews = ref([])
+const historyFilter = ref('')
 
 // Fetch user's GitHub repositories
 const fetchUserRepos = async () => {
@@ -97,6 +100,67 @@ const handleSearchInput = (event) => {
   repo.value = event.target.value
   showDropdown.value = true
 }
+
+// Review History Functions
+const loadReviewHistory = () => {
+  savedReviews.value = JSON.parse(localStorage.getItem('quode_reviews') || '[]')
+  showHistoryModal.value = true
+}
+
+const closeHistoryModal = () => {
+  showHistoryModal.value = false
+  historyFilter.value = ''
+}
+
+const filteredHistory = computed(() => {
+  if (!historyFilter.value) return savedReviews.value
+  const query = historyFilter.value.toLowerCase()
+  return savedReviews.value.filter(r =>
+    r.repo.toLowerCase().includes(query) ||
+    r.prTitle.toLowerCase().includes(query) ||
+    r.prNumber.toString().includes(query)
+  )
+})
+
+const loadSavedReview = (reviewData) => {
+  repo.value = reviewData.repo
+  searchQuery.value = reviewData.repo
+
+  // Create PR object from saved data
+  const prObject = {
+    number: reviewData.prNumber,
+    title: reviewData.prTitle,
+    author: { login: reviewData.prAuthor },
+    updatedAt: reviewData.savedAt
+  }
+
+  // Add to PRs list if not already there
+  if (!prs.value.find(p => p.number === prObject.number)) {
+    prs.value = [prObject, ...prs.value]
+  }
+
+  selectedPR.value = prObject
+  closeHistoryModal()
+}
+
+const deleteReview = (reviewId) => {
+  if (!confirm('Are you sure you want to delete this review?')) return
+
+  const reviews = JSON.parse(localStorage.getItem('quode_reviews') || '[]')
+  const filtered = reviews.filter(r => r.id !== reviewId)
+  localStorage.setItem('quode_reviews', JSON.stringify(filtered))
+  savedReviews.value = filtered
+}
+
+const formatDateTime = (dateString) => {
+  return new Date(dateString).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 </script>
 
 <template>
@@ -133,6 +197,9 @@ const handleSearchInput = (event) => {
               <div class="dropdown-item-empty">No repositories found</div>
             </div>
           </div>
+          <button class="btn-secondary" @click="loadReviewHistory">
+            History
+          </button>
           <button class="btn" @click="fetchPRs" :disabled="loading || !repo">
             {{ loading ? 'Loading...' : 'Begin' }}
           </button>
@@ -222,5 +289,66 @@ const handleSearchInput = (event) => {
         </div>
       </div>
     </main>
+
+    <!-- Review History Modal -->
+    <Teleport to="body">
+      <div v-if="showHistoryModal" class="modal-overlay" @click="closeHistoryModal">
+        <div class="history-modal" @click.stop>
+          <div class="history-header">
+            <h2 class="history-title">Review History</h2>
+            <button class="modal-close" @click="closeHistoryModal">×</button>
+          </div>
+
+          <div class="history-search">
+            <input
+              v-model="historyFilter"
+              type="text"
+              class="input"
+              placeholder="Filter by repository, PR title, or number..."
+            />
+          </div>
+
+          <div class="history-body">
+            <div v-if="filteredHistory.length === 0" class="history-empty">
+              <p v-if="savedReviews.length === 0">No saved reviews yet. Generate a review to see it here!</p>
+              <p v-else>No reviews match your search.</p>
+            </div>
+
+            <div v-else class="history-list">
+              <div
+                v-for="review in filteredHistory"
+                :key="review.id"
+                class="history-item"
+              >
+                <div class="history-item-content">
+                  <div class="history-item-header">
+                    <span class="history-pr-number">#{{ review.prNumber }}</span>
+                    <span class="history-repo">{{ review.repo }}</span>
+                  </div>
+                  <h3 class="history-pr-title">{{ review.prTitle }}</h3>
+                  <div class="history-meta">
+                    <span>{{ review.prAuthor }}</span>
+                    <span>•</span>
+                    <span>{{ formatDateTime(review.savedAt) }}</span>
+                  </div>
+                </div>
+                <div class="history-item-actions">
+                  <button class="btn-load" @click="loadSavedReview(review)">
+                    Load
+                  </button>
+                  <button class="btn-delete" @click="deleteReview(review.id)">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-footer">
+            <button class="btn" @click="closeHistoryModal">Close</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

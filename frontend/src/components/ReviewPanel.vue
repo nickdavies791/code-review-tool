@@ -80,6 +80,49 @@ const reviewHtml = computed(() => {
   return marked.parse(review.value.content);
 })
 
+// Save review to localStorage
+const saveReview = () => {
+  if (!review.value) return
+
+  const savedReviews = JSON.parse(localStorage.getItem('quode_reviews') || '[]')
+
+  // Remove any existing review for this PR (to avoid duplicates)
+  const filtered = savedReviews.filter(r => !(r.repo === props.repo && r.prNumber === props.pr.number))
+
+  const reviewData = {
+    id: `${props.repo}-${props.pr.number}-${Date.now()}`,
+    repo: props.repo,
+    prNumber: props.pr.number,
+    prTitle: props.pr.title,
+    prAuthor: props.pr.author?.login || 'Unknown',
+    review: review.value,
+    prDetails: prDetails.value,
+    savedAt: new Date().toISOString()
+  }
+
+  filtered.unshift(reviewData) // Add to beginning
+
+  // Keep only last 50 reviews
+  if (filtered.length > 50) {
+    filtered.pop()
+  }
+
+  localStorage.setItem('quode_reviews', JSON.stringify(filtered))
+}
+
+// Check if review already exists for this PR
+const checkExistingReview = () => {
+  const savedReviews = JSON.parse(localStorage.getItem('quode_reviews') || '[]')
+  const existing = savedReviews.find(r => r.repo === props.repo && r.prNumber === props.pr.number)
+
+  if (existing) {
+    review.value = existing.review
+    prDetails.value = existing.prDetails
+    return true
+  }
+  return false
+}
+
 const generateReview = async () => {
   loading.value = true
   error.value = null
@@ -96,6 +139,9 @@ const generateReview = async () => {
     })
 
     review.value = reviewResponse.data.review
+
+    // Auto-save the review
+    saveReview()
   } catch (err) {
     error.value = err.response?.data?.error || 'Failed to generate review'
     console.error(err)
@@ -104,12 +150,17 @@ const generateReview = async () => {
   }
 }
 
-// Reset review when PR changes
+// Reset review when PR changes, but check for existing review
 watch(() => props.pr, () => {
   review.value = null
   prDetails.value = null
   error.value = null
-})
+
+  // Check if we have an existing review for this PR
+  if (props.pr) {
+    checkExistingReview()
+  }
+}, { immediate: true })
 </script>
 
 <template>
