@@ -200,7 +200,7 @@ watch(() => props.pr, () => {
 
     <!-- Modal -->
     <Teleport to="body">
-      <div v-if="showModal" class="modal-overlay" @click="closeModal">
+      <div v-if="showModal && review" class="modal-overlay" @click="closeModal">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
             <h2 class="modal-title">
