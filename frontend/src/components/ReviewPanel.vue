@@ -9,6 +9,8 @@ const props = defineProps({
 })
 
 const loading = ref(false)
+const loadingStage = ref('Initialising')
+const aiProgress = ref('')
 const error = ref(null)
 const review = ref(null)
 const prDetails = ref(null)
@@ -126,6 +128,8 @@ const checkExistingReview = () => {
 
 const generateReview = async () => {
   loading.value = true
+  loadingStage.value = 'Fetching PR details'
+  aiProgress.value = ''
   error.value = null
   review.value = null
 
@@ -134,15 +138,51 @@ const generateReview = async () => {
     const detailsResponse = await axios.get(`/api/pr-details?repo=${encodeURIComponent(props.repo)}&number=${props.pr.number}`)
     prDetails.value = detailsResponse.data.pr
 
-    // Then generate the AI review
-    const reviewResponse = await axios.post('/api/review', {
-      pr: prDetails.value
-    })
+    // Small delay to show completion of first stage
+    await new Promise(resolve => setTimeout(resolve, 300))
 
-    review.value = reviewResponse.data.review
+    loadingStage.value = 'AI analysing code changes'
 
-    // Auto-save the review
-    saveReview()
+    // Simulate AI progress indicators
+    const aiSteps = [
+      'Reading code diff...',
+      'Identifying potential issues...',
+      'Analysing code quality...',
+      'Checking best practices...',
+      'Generating recommendations...',
+      'Finalising review...'
+    ]
+
+    let currentStep = 0
+    const progressInterval = setInterval(() => {
+      if (currentStep < aiSteps.length) {
+        aiProgress.value = aiSteps[currentStep]
+        currentStep++
+      }
+    }, 8000) // Update every 8 seconds
+
+    try {
+      // Then generate the AI review
+      const reviewResponse = await axios.post('/api/review', {
+        pr: prDetails.value
+      })
+
+      clearInterval(progressInterval)
+
+      loadingStage.value = 'Finalising review'
+      aiProgress.value = ''
+
+      // Small delay to show final stage
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      review.value = reviewResponse.data.review
+
+      // Auto-save the review
+      saveReview()
+    } catch (err) {
+      clearInterval(progressInterval)
+      throw err
+    }
   } catch (err) {
     error.value = err.response?.data?.error || 'Failed to generate review'
     console.error(err)
@@ -186,9 +226,46 @@ watch(() => props.pr, () => {
         {{ error }}
       </div>
 
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
-        <p>Analyzing code changes...</p>
+      <div v-if="loading" class="loading-container">
+        <div class="loading-content">
+          <div class="loading-icon">
+            <svg class="loading-svg" viewBox="0 0 100 100">
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              <circle class="loading-circle-bg" cx="50" cy="50" r="45"></circle>
+              <circle class="loading-circle" cx="50" cy="50" r="45"></circle>
+            </svg>
+            <div class="loading-icon-inner">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+            </div>
+          </div>
+          <h3 class="loading-title">{{ loadingStage }}</h3>
+          <p class="loading-subtitle">This may take 30-120 seconds depending on PR size</p>
+          <div class="loading-stages">
+            <div class="loading-stage" :class="{ active: loadingStage === 'Fetching PR details', complete: loadingStage !== 'Fetching PR details' }">
+              <div class="stage-dot"></div>
+              <span>Fetching PR details</span>
+            </div>
+            <div class="loading-stage" :class="{ active: loadingStage === 'AI analysing code changes', complete: loadingStage === 'Finalising review' }">
+              <div class="stage-dot"></div>
+              <div class="stage-content">
+                <span>AI analysing code</span>
+                <span v-if="aiProgress" class="ai-progress">{{ aiProgress }}</span>
+              </div>
+            </div>
+            <div class="loading-stage" :class="{ active: loadingStage === 'Finalising review' }">
+              <div class="stage-dot"></div>
+              <span>Finalising review</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="review">
@@ -498,6 +575,211 @@ watch(() => props.pr, () => {
 .btn-small {
   padding: 0.5rem 1rem !important;
   font-size: 0.8rem !important;
+}
+
+/* Professional Loading UI */
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+  padding: 4rem 2rem;
+}
+
+.loading-content {
+  text-align: center;
+  max-width: 500px;
+}
+
+.loading-icon {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 2rem;
+}
+
+.loading-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.loading-circle-bg {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 4;
+}
+
+.loading-circle {
+  fill: none;
+  stroke: url(#gradient);
+  stroke-width: 4;
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  animation: loadingProgress 2.5s linear infinite;
+  stroke-linecap: round;
+}
+
+@keyframes loadingProgress {
+  0% {
+    stroke-dashoffset: 283;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.loading-icon-inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--primary);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+}
+
+.loading-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.02em;
+}
+
+.loading-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 2.5rem 0;
+  font-weight: 500;
+}
+
+.loading-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  text-align: left;
+}
+
+.loading-stage {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--bg-hover);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  opacity: 0.5;
+}
+
+.loading-stage.active {
+  opacity: 1;
+  background: var(--bg-elevated);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px var(--glow);
+}
+
+.loading-stage.complete {
+  opacity: 1;
+  background: rgba(16, 185, 129, 0.05);
+  border-color: var(--secondary);
+}
+
+.stage-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.loading-stage.active .stage-dot {
+  background: var(--primary);
+  animation: dotPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 0 var(--primary);
+}
+
+.loading-stage.complete .stage-dot {
+  background: var(--secondary);
+  position: relative;
+}
+
+.loading-stage.complete .stage-dot::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+}
+
+@keyframes dotPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+.loading-stage span {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+
+.loading-stage.active span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loading-stage.complete span {
+  color: var(--secondary);
+}
+
+.stage-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.ai-progress {
+  font-size: 0.85rem !important;
+  color: var(--primary) !important;
+  font-weight: 500 !important;
+  font-style: italic;
+  animation: fadeInProgress 0.4s ease-in;
+}
+
+@keyframes fadeInProgress {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .truncation-warning {
