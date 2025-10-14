@@ -13,17 +13,44 @@ function executeGhCommand($command) {
 }
 
 function handleGetRepos() {
-    // Get list of user's repos (or could search)
-    $command = 'gh repo list --json name,owner,url --limit 20';
-    $result = executeGhCommand($command);
-    
-    if (isset($result['error'])) {
-        http_response_code(500);
-        echo json_encode($result);
-        return;
+    $allRepos = [];
+
+    // Get user's personal repos
+    $command = 'gh repo list --json nameWithOwner --limit 1000';
+    $userRepos = executeGhCommand($command);
+
+    if (!isset($userRepos['error']) && is_array($userRepos)) {
+        foreach ($userRepos as $repo) {
+            $allRepos[] = $repo['nameWithOwner'];
+        }
     }
-    
-    echo json_encode(['repos' => $result]);
+
+    // Get list of organizations
+    $orgsCommand = 'gh api user/orgs --jq ".[].login"';
+    $orgsOutput = [];
+    exec($orgsCommand . ' 2>&1', $orgsOutput, $return_var);
+
+    if ($return_var === 0) {
+        // Fetch repos from each organization
+        foreach ($orgsOutput as $org) {
+            $org = trim($org);
+            if (!empty($org)) {
+                $orgReposCommand = "gh repo list $org --json nameWithOwner --limit 1000";
+                $orgRepos = executeGhCommand($orgReposCommand);
+
+                if (!isset($orgRepos['error']) && is_array($orgRepos)) {
+                    foreach ($orgRepos as $repo) {
+                        $allRepos[] = $repo['nameWithOwner'];
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort repos alphabetically
+    sort($allRepos);
+
+    echo json_encode(['repos' => $allRepos]);
 }
 
 function handleGetPRs() {

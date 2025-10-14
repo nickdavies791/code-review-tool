@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import ReviewPanel from './components/ReviewPanel.vue'
 
@@ -8,6 +8,27 @@ const prs = ref([])
 const selectedPR = ref(null)
 const loading = ref(false)
 const error = ref(null)
+const userRepos = ref([])
+const loadingRepos = ref(false)
+
+// Fetch user's GitHub repositories
+const fetchUserRepos = async () => {
+  loadingRepos.value = true
+  try {
+    const response = await axios.get('/api/repos')
+    userRepos.value = response.data.repos || []
+  } catch (err) {
+    console.error('Failed to fetch repos:', err)
+    // Silently fail - user can still type manually
+  } finally {
+    loadingRepos.value = false
+  }
+}
+
+// Load repos on component mount
+onMounted(() => {
+  fetchUserRepos()
+})
 
 const fetchPRs = async () => {
   if (!repo.value) {
@@ -66,9 +87,15 @@ const formatDate = (dateString) => {
           v-model="repo"
           type="text"
           class="input"
-          placeholder="Enter repository (e.g., facebook/react, microsoft/typescript)"
+          list="repo-suggestions"
+          placeholder="Enter or select a repository"
           @keyup.enter="fetchPRs"
         />
+        <datalist id="repo-suggestions">
+          <option v-for="repoName in userRepos" :key="repoName" :value="repoName">
+            {{ repoName }}
+          </option>
+        </datalist>
         <button class="btn" @click="fetchPRs" :disabled="loading">
           {{ loading ? 'Loading...' : 'Fetch PRs' }}
         </button>
