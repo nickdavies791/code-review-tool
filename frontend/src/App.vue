@@ -161,13 +161,21 @@ const formatDateTime = (dateString) => {
     minute: '2-digit'
   })
 }
+
+const goHome = () => {
+  repo.value = ''
+  searchQuery.value = ''
+  prs.value = []
+  selectedPR.value = null
+  error.value = null
+}
 </script>
 
 <template>
   <div class="app-container">
     <header class="app-header">
       <div class="header-content">
-        <div class="logo">
+        <div class="logo logo-clickable" @click="goHome">
           <h1 class="app-title">Quode</h1>
           <p class="app-slogan">Review Smarter, Ship Faster</p>
         </div>

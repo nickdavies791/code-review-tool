@@ -17,7 +17,6 @@ const prDetails = ref(null)
 const showModal = ref(false)
 const activeTab = ref('actionable')
 const modalActiveTab = ref('actionable')
-const showRawContent = ref(false)
 
 const openModal = () => {
   showModal.value = true
@@ -275,14 +274,9 @@ watch(() => props.pr, () => {
             <span>•</span>
             <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
           </div>
-          <div style="display: flex; gap: 0.75rem;">
-            <button class="btn-secondary btn-small" @click="showRawContent = !showRawContent" title="Toggle raw content for debugging">
-              {{ showRawContent ? 'Hide Raw' : 'Show Raw' }}
-            </button>
-            <button class="btn-secondary" @click="openModal">
-              View Full Review
-            </button>
-          </div>
+          <button class="btn-secondary" @click="openModal">
+            View Full Review
+          </button>
         </div>
 
         <!-- Truncation Warning -->
@@ -296,17 +290,6 @@ watch(() => props.pr, () => {
         <div v-else-if="review.hasAllSections === false" class="truncation-warning" style="background: rgba(251, 146, 60, 0.1); border-color: #fb923c;">
           <strong>⚠️ Notice:</strong> Some sections may be missing from this review.
           This could mean the AI didn't find issues in those areas, or the response was incomplete.
-        </div>
-
-        <!-- Raw Content Debug View -->
-        <div v-if="showRawContent" class="raw-content-debug">
-          <h4>Raw AI Response (for debugging):</h4>
-          <div class="debug-meta">
-            <span><strong>Truncated:</strong> {{ review.truncated ? 'Yes' : 'No' }}</span>
-            <span v-if="review.finishReason"><strong>Finish Reason:</strong> {{ review.finishReason }}</span>
-            <span><strong>Has All Sections:</strong> {{ review.hasAllSections ? 'Yes' : 'No' }}</span>
-          </div>
-          <pre>{{ review.content }}</pre>
         </div>
 
         <!-- Tabs -->
@@ -572,11 +555,6 @@ watch(() => props.pr, () => {
   cursor: not-allowed;
 }
 
-.btn-small {
-  padding: 0.5rem 1rem !important;
-  font-size: 0.8rem !important;
-}
-
 /* Professional Loading UI */
 .loading-container {
   display: flex;
@@ -795,61 +773,6 @@ watch(() => props.pr, () => {
 
 .truncation-warning strong {
   font-weight: 700;
-}
-
-.raw-content-debug {
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: var(--bg-tertiary);
-  border: 2px solid var(--border);
-  border-radius: 12px;
-}
-
-.raw-content-debug h4 {
-  margin: 0 0 1rem 0;
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.debug-meta {
-  display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
-}
-
-.debug-meta span {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.debug-meta strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.raw-content-debug pre {
-  margin: 0;
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  max-height: 400px;
-  overflow-y: auto;
 }
 
 .tabs {
