@@ -70,35 +70,26 @@ const formatDate = (dateString) => {
 <template>
   <div class="app-container">
     <header class="app-header">
-      <div class="header-top">
-        <div class="logo">
-          <div>
-            <h1>AI Code Review</h1>
-            <div class="badges">
-              <span class="badge badge-pink">Gemini</span>
-              <span class="badge badge-purple">GitHub</span>
-            </div>
-          </div>
+      <div class="header-content">
+        <h1 class="app-title">AI Code Review</h1>
+        <div class="header-actions">
+          <input
+            v-model="repo"
+            type="text"
+            class="input"
+            list="repo-suggestions"
+            placeholder="owner/repository"
+            @keyup.enter="fetchPRs"
+          />
+          <datalist id="repo-suggestions">
+            <option v-for="repoName in userRepos" :key="repoName" :value="repoName">
+              {{ repoName }}
+            </option>
+          </datalist>
+          <button class="btn" @click="fetchPRs" :disabled="loading">
+            {{ loading ? 'Loading...' : 'Load PRs' }}
+          </button>
         </div>
-      </div>
-
-      <div class="search-bar">
-        <input
-          v-model="repo"
-          type="text"
-          class="input"
-          list="repo-suggestions"
-          placeholder="Enter or select a repository"
-          @keyup.enter="fetchPRs"
-        />
-        <datalist id="repo-suggestions">
-          <option v-for="repoName in userRepos" :key="repoName" :value="repoName">
-            {{ repoName }}
-          </option>
-        </datalist>
-        <button class="btn" @click="fetchPRs" :disabled="loading">
-          {{ loading ? 'Loading...' : 'Fetch PRs' }}
-        </button>
       </div>
     </header>
 

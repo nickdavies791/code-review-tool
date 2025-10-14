@@ -12,6 +12,62 @@ const loading = ref(false)
 const error = ref(null)
 const review = ref(null)
 const prDetails = ref(null)
+const showModal = ref(false)
+const activeTab = ref('actionable')
+const modalActiveTab = ref('actionable')
+
+const openModal = () => {
+  showModal.value = true
+}
+
+const closeModal = () => {
+  showModal.value = false
+}
+
+const parseSections = computed(() => {
+  if (!review.value?.content) return null
+
+  const content = review.value.content
+  const sections = {
+    actionable: '',
+    quality: '',
+    highlights: '',
+    summary: ''
+  }
+
+  // Split content by section markers
+  const actionableMatch = content.match(/## SECTION: ACTIONABLE_ITEMS([\s\S]*?)(?=## SECTION:|$)/i)
+  const qualityMatch = content.match(/## SECTION: CODE_QUALITY([\s\S]*?)(?=## SECTION:|$)/i)
+  const highlightsMatch = content.match(/## SECTION: POSITIVE_HIGHLIGHTS([\s\S]*?)(?=## SECTION:|$)/i)
+  const summaryMatch = content.match(/## SECTION: SUMMARY([\s\S]*?)$/i)
+
+  if (actionableMatch) sections.actionable = actionableMatch[1].trim()
+  if (qualityMatch) sections.quality = qualityMatch[1].trim()
+  if (highlightsMatch) sections.highlights = highlightsMatch[1].trim()
+  if (summaryMatch) sections.summary = summaryMatch[1].trim()
+
+  return sections
+})
+
+const actionableHtml = computed(() => {
+  if (!parseSections.value?.actionable) return ''
+  return marked.parse(parseSections.value.actionable)
+})
+
+const qualityHtml = computed(() => {
+  if (!parseSections.value?.quality) return ''
+  return marked.parse(parseSections.value.quality)
+})
+
+const highlightsHtml = computed(() => {
+  if (!parseSections.value?.highlights) return ''
+  return marked.parse(parseSections.value.highlights)
+})
+
+const summaryHtml = computed(() => {
+  if (!parseSections.value?.summary) return ''
+  return marked.parse(parseSections.value.summary)
+})
 
 // Configure marked for better code review rendering
 marked.setOptions({
@@ -85,11 +141,55 @@ watch(() => props.pr, () => {
 
       <div v-else-if="review">
         <div class="review-meta">
-          <span>Reviewed by {{ review.model }}</span>
-          <span>•</span>
-          <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
+          <div>
+            <span>Reviewed by {{ review.model }}</span>
+            <span>•</span>
+            <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
+          </div>
+          <button class="btn-secondary" @click="openModal">
+            View Full Review
+          </button>
         </div>
-        <div class="review-content" v-html="reviewHtml"></div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button
+            class="tab"
+            :class="{ active: activeTab === 'actionable' }"
+            @click="activeTab = 'actionable'"
+          >
+            Action Items
+          </button>
+          <button
+            class="tab"
+            :class="{ active: activeTab === 'quality' }"
+            @click="activeTab = 'quality'"
+          >
+            Code Quality
+          </button>
+          <button
+            class="tab"
+            :class="{ active: activeTab === 'highlights' }"
+            @click="activeTab = 'highlights'"
+          >
+            Highlights
+          </button>
+          <button
+            class="tab"
+            :class="{ active: activeTab === 'summary' }"
+            @click="activeTab = 'summary'"
+          >
+            Summary
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+          <div v-if="activeTab === 'actionable'" class="review-content" v-html="actionableHtml"></div>
+          <div v-if="activeTab === 'quality'" class="review-content" v-html="qualityHtml"></div>
+          <div v-if="activeTab === 'highlights'" class="review-content" v-html="highlightsHtml"></div>
+          <div v-if="activeTab === 'summary'" class="review-content" v-html="summaryHtml"></div>
+        </div>
       </div>
 
       <div v-else class="empty-state">
@@ -97,6 +197,70 @@ watch(() => props.pr, () => {
         <p>Click "Review with AI" to start the code review</p>
       </div>
     </div>
+
+    <!-- Modal -->
+    <Teleport to="body">
+      <div v-if="showModal" class="modal-overlay" @click="closeModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2 class="modal-title">
+              PR #{{ pr.number }}: {{ pr.title }}
+            </h2>
+            <button class="modal-close" @click="closeModal">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="review-meta-modal">
+              <span>Reviewed by {{ review.model }}</span>
+              <span>•</span>
+              <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
+            </div>
+
+            <!-- Modal Tabs -->
+            <div class="tabs">
+              <button
+                class="tab"
+                :class="{ active: modalActiveTab === 'actionable' }"
+                @click="modalActiveTab = 'actionable'"
+              >
+                Action Items
+              </button>
+              <button
+                class="tab"
+                :class="{ active: modalActiveTab === 'quality' }"
+                @click="modalActiveTab = 'quality'"
+              >
+                Code Quality
+              </button>
+              <button
+                class="tab"
+                :class="{ active: modalActiveTab === 'highlights' }"
+                @click="modalActiveTab = 'highlights'"
+              >
+                Highlights
+              </button>
+              <button
+                class="tab"
+                :class="{ active: modalActiveTab === 'summary' }"
+                @click="modalActiveTab = 'summary'"
+              >
+                Summary
+              </button>
+            </div>
+
+            <!-- Modal Tab Content -->
+            <div class="tab-content">
+              <div v-if="modalActiveTab === 'actionable'" class="review-content" v-html="actionableHtml"></div>
+              <div v-if="modalActiveTab === 'quality'" class="review-content" v-html="qualityHtml"></div>
+              <div v-if="modalActiveTab === 'highlights'" class="review-content" v-html="highlightsHtml"></div>
+              <div v-if="modalActiveTab === 'summary'" class="review-content" v-html="summaryHtml"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" @click="closeModal">Close</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -105,7 +269,6 @@ watch(() => props.pr, () => {
   background: var(--bg-card);
   border-radius: 16px;
   box-shadow: 0 2px 12px var(--shadow);
-  overflow: hidden;
 }
 
 .review-header {
@@ -130,8 +293,6 @@ watch(() => props.pr, () => {
 .review-body {
   padding: 2.5rem;
   background: var(--bg-card);
-  max-height: calc(100vh - 300px);
-  overflow-y: auto;
 }
 
 .review-body::-webkit-scrollbar {
@@ -161,8 +322,89 @@ watch(() => props.pr, () => {
   color: var(--text-muted);
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-weight: 500;
+}
+
+.review-meta > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.review-meta-modal {
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  margin-bottom: 2.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
   font-weight: 500;
+}
+
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab {
+  padding: 1rem 1.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  bottom: -2px;
+}
+
+.tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.tab-content {
+  min-height: 400px;
 }
 
 .review-content {
@@ -325,5 +567,130 @@ watch(() => props.pr, () => {
 
 .review-content :deep(tr:last-child td) {
   border-bottom: none;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.3);
+  width: 100%;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 2rem 2.5rem;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+
+.modal-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--primary);
+  color: var(--text);
+  transform: rotate(90deg);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2.5rem;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 12px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.modal-footer {
+  padding: 1.5rem 2.5rem;
+  border-top: 2px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  background: var(--bg-hover);
+  border-radius: 0 0 20px 20px;
 }
 </style>

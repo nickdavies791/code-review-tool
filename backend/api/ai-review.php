@@ -54,10 +54,10 @@ function generateGeminiReview($pr_data, $api_key) {
                 ]
             ],
             'generationConfig' => [
-                'temperature' => 0.7,
+                'temperature' => 0.3,
                 'maxOutputTokens' => 4096,
                 'thinkingConfig' => [
-                    'thinkingBudget' => 0  // Disable thinking for faster responses
+                    'thinkingBudget' => 8192  // Allow thinking for accurate diff interpretation
                 ]
             ]
         ]
@@ -94,22 +94,42 @@ function buildReviewPrompt($pr_data) {
     }
     
     return <<<PROMPT
-You are a senior software engineer performing a thorough code review. Analyze this Pull Request with attention to detail and provide actionable, constructive feedback.
+You are an experienced senior software engineer conducting a thorough code review. Analyze the changes in this Pull Request carefully and provide actionable feedback.
 
-# Pull Request Overview
+# CRITICAL INSTRUCTIONS FOR READING DIFFS
 
-**Title:** {$title}
+**Understanding Diff Format:**
+- Lines starting with `-` (minus) show code that was REMOVED (old code)
+- Lines starting with `+` (plus) show code that was ADDED (new code)
+- Lines without +/- are context (unchanged code)
+- When you see a `-` line followed by a `+` line, this is a CHANGE (removal + addition)
 
-**Description:** 
-{$body}
+**BEFORE making ANY comment:**
+1. Read the entire diff section carefully
+2. Identify what was actually REMOVED (- lines) vs ADDED (+ lines)
+3. Understand the change: is it adding new code, removing old code, or modifying existing code?
+4. Only comment on what is actually present in the + lines (added code)
+5. Do NOT reference code that was removed unless discussing the removal itself
 
-**Changes Summary:** +{$additions} additions, -{$deletions} deletions
+**You MUST be accurate. Never:**
+- Reference removed code as if it's being added
+- Self-correct or show your thinking process
+- Make premature conclusions before reading the full diff section
+- Confuse what's being added vs what's being removed
 
-{$files_summary}
+**Your output must be professional and definitive. No self-corrections or thinking out loud.**
 
 ---
 
-# Code Diff
+# Pull Request Context
+
+**Title:** {$title}
+**Description:** {$body}
+**Changes:** +{$additions} additions, -{$deletions} deletions
+
+{$files_summary}
+
+# Code Diff to Review
 
 \`\`\`diff
 {$diff}
@@ -117,65 +137,133 @@ You are a senior software engineer performing a thorough code review. Analyze th
 
 ---
 
-# Review Instructions
+# Review Guidelines
 
-Please provide a comprehensive code review with the following structure:
+Analyze the changes shown in the diff above. Focus primarily on what's changed, but consider potential impacts on the broader codebase where relevant.
 
-## 1. Summary
-Brief 2-3 sentence overview of what this PR does and your overall assessment.
+## SECTION: ACTIONABLE_ITEMS
 
-## 2. Critical Issues 🔴
-List any critical bugs, security vulnerabilities, or breaking changes that MUST be addressed before merging.
+### Critical Issues 🔴
+Issues that MUST be fixed before merging:
 
-## 3. Code Quality Review
+**Security Vulnerabilities**
+- SQL injection, XSS, CSRF vulnerabilities
+- Authentication/authorization bypasses
+- Exposed secrets, API keys, or sensitive data
+- Insecure cryptography or data handling
 
-### Architecture & Design
-- Evaluate the approach and design patterns used
-- Suggest improvements to structure or organization
+**Critical Bugs**
+- Code that will crash or cause failures
+- Data corruption or loss risks
+- Breaking changes to public APIs
+- Race conditions or concurrency issues
 
-### Best Practices
-- Identify violations of language/framework best practices
-- Point out code smells or anti-patterns
+**For each issue found:**
+**File:** `path/to/file.ext` (Line ~X)
+**Issue:** Clear description of the problem
+**Impact:** Why this is critical and what breaks
+**Fix:** Specific solution with code example if applicable
 
-### Performance Considerations
-- Flag potential performance bottlenecks
-- Suggest optimizations where relevant
+### Important Improvements ⚠️
+Issues that should be addressed (not necessarily blocking):
 
-### Error Handling
-- Check for proper error handling and edge cases
-- Identify missing validations or boundary checks
+- Missing error handling or input validation
+- Logic errors or unhandled edge cases
+- Resource leaks or improper cleanup
+- Significant violations of best practices
+- Poor error messages or logging
+- Missing null/undefined checks
 
-## 4. Security Review 🔒
-- Check for security vulnerabilities (SQL injection, XSS, etc.)
-- Review authentication/authorization logic
-- Flag any exposed sensitive data
-
-## 5. Suggestions & Improvements 💡
-Provide specific, actionable suggestions with code examples where helpful. Format like:
-
-**File:** `path/to/file.php`
-**Line:** ~42
-**Issue:** Brief description
-**Suggestion:** 
-\`\`\`php
-// Better approach
-\`\`\`
-
-## 6. Positive Highlights ✅
-Call out things done well (clean code, good tests, smart solutions, etc.)
-
-## 7. Overall Recommendation
-- ✅ **Approve** - Ready to merge
-- 🔄 **Request Changes** - Needs fixes before merging  
-- 💬 **Comment** - Optional improvements, but not blocking
+**For each:**
+**File:** `path/to/file.ext` (Line ~X)
+**Issue:** What's wrong or missing
+**Suggestion:** How to improve it
 
 ---
 
-**Important Guidelines:**
-- Be specific with line numbers and file references
-- Provide code examples for suggested improvements
-- Focus on meaningful issues, not nitpicks
-- Be constructive and encouraging in tone
-- If the PR is small/trivial, keep the review proportional
+## SECTION: CODE_QUALITY
+
+Evaluate the quality of the changed code:
+
+### Architecture & Design
+- Is the solution approach sound and maintainable?
+- Are abstractions and patterns used appropriately?
+- Does it fit well with the existing codebase?
+- Any simpler or more elegant alternatives?
+
+### Code Clarity & Maintainability
+- Is the code easy to read and understand?
+- Are variable/function/class names clear and descriptive?
+- Is the code properly organized and modular?
+- Are comments helpful (or missing where needed, or excessive)?
+- Any overly complex sections that could be simplified?
+
+### Best Practices & Standards
+- Does it follow language/framework conventions?
+- Are there DRY principle violations (code duplication)?
+- SOLID principles adherence where applicable
+- Appropriate use of design patterns
+- Any code smells or anti-patterns?
+
+### Performance & Efficiency
+- Any obvious performance bottlenecks?
+- Inefficient algorithms or data structures?
+- Unnecessary database queries or API calls?
+- Memory leaks or excessive resource usage?
+- Opportunities for caching or optimization?
+
+### Testing
+- Are tests included or updated as needed?
+- Do tests cover important scenarios and edge cases?
+- Is test code clear and maintainable?
+
+**Be specific with file names and line numbers. Focus on meaningful issues over nitpicks.**
+
+---
+
+## SECTION: POSITIVE_HIGHLIGHTS
+
+### What's Done Well ✅
+
+Highlight 2-5 things that are well-executed in this PR:
+- Clean, elegant solutions
+- Good error handling or validation
+- Smart optimizations or performance improvements
+- Clear naming and code organization
+- Well-written tests
+- Good documentation or comments
+- Proper use of design patterns
+- Security considerations
+
+Be specific and genuine - call out actual good work you see.
+
+---
+
+## SECTION: SUMMARY
+
+### Overview
+Provide a 2-4 sentence summary:
+- What this PR accomplishes
+- Overall code quality assessment
+- Most important concern or praise
+
+### Recommendation
+**Choose one:**
+- ✅ **APPROVE** - Code is ready to merge as-is
+- 🔄 **REQUEST CHANGES** - Critical or important issues must be addressed first
+- 💬 **COMMENT** - Minor suggestions only, not blocking merge
+
+### Merge Readiness: X/10
+Brief justification for the score.
+
+---
+
+**Review Principles:**
+- **Be thorough but proportional** - Small changes deserve concise reviews
+- **Be specific** - Always include file paths and approximate line numbers
+- **Focus on impact** - Prioritize issues that affect functionality, security, or maintainability
+- **Be constructive** - Suggest solutions, not just problems
+- **Be honest** - If the code is good, say so. If there are issues, clearly identify them
+- **Consider context** - The changed code may interact with unchanged code in important ways
 PROMPT;
 }
