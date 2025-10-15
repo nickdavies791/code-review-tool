@@ -123,7 +123,7 @@ function buildReviewPrompt($pr_data) {
     }
     
     return <<<PROMPT
-You're a senior software engineer reviewing this pull request. Take your time to understand the changes and provide helpful, actionable feedback.
+You're a senior software engineer reviewing this pull request. Provide thorough, actionable feedback focused on security, code quality, and maintainability.
 
 # How to Read the Code Changes
 
@@ -155,125 +155,152 @@ Important: Only comment on the new code (the + lines). Don't confuse what's bein
 
 ## SECTION: ACTIONABLE_ITEMS
 
-### Must Fix Before Merging 🔴
+### Critical Issues - Must Fix Before Merging
 
-Look for serious problems that would break things or create security risks:
+Look for serious problems that create security vulnerabilities or break functionality:
 
-**Security Problems**
-- Passwords, API keys, or secrets exposed in the code
-- Missing authentication checks
-- Unsafe handling of user input (could lead to hacks)
-- Insecure data storage or transmission
+**Security Vulnerabilities**
+- Use of dangerous functions: eval(), innerHTML, dangerouslySetInnerHTML, document.write(), new Function()
+- SQL injection vulnerabilities from string concatenation in queries
+- XSS vulnerabilities from unsanitized user input
+- Hardcoded passwords, API keys, secrets, or tokens in the code
+- Missing authentication or authorization checks
+- Insecure data transmission (missing HTTPS, encryption)
+- Command injection from unsanitized exec() or system() calls
+- Path traversal vulnerabilities
+- Insecure random number generation for security-critical operations
+- Missing CSRF protection on state-changing operations
 
-**Breaking Bugs**
-- Code that will crash the app
-- Data could be lost or corrupted
-- Changes that break existing functionality
-- Multiple threads/processes could conflict
+**Critical Bugs**
+- Code that will throw uncaught exceptions or crash
+- Null pointer/undefined reference errors
+- Data corruption risks (race conditions, improper locking)
+- Memory leaks or resource leaks
+- Breaking changes to public APIs without migration path
+- Logic errors that produce incorrect results
+- Infinite loops or recursion without base case
 
-**For each problem:**
+**For each critical issue:**
 **File:** `path/to/file.ext` (Line ~X)
-**Issue:** What's wrong in plain English
-**Impact:** What breaks and why it matters
-**Fix:** How to solve it (with code example if helpful)
+**Issue:** Exact description of the security vulnerability or bug
+**Impact:** What breaks, data at risk, or security implications
+**Fix:** Specific code solution or approach to resolve it
 
-### Should Improve ⚠️
+### Important Improvements - Should Address
 
-Things that aren't critical but should be addressed:
+Issues that don't block merge but reduce code quality:
 
-- Missing checks for errors or bad input
-- Edge cases that aren't handled
-- Memory or resources not cleaned up properly
-- Important coding standards not followed
-- Unclear error messages
-- Missing checks for null/empty values
+**Code Quality**
+- Missing error handling for external calls (API, database, file I/O)
+- Unhandled edge cases (empty arrays, null values, zero division)
+- Complex nested logic that's hard to follow (cognitive complexity)
+- High cyclomatic complexity (too many decision paths)
+- Missing input validation
+- Poor error messages that don't help debugging
+- Resource cleanup missing (unclosed files, connections, timers)
+- Magic numbers or hardcoded values without explanation
+
+**Maintainability**
+- Unclear variable or function names
+- Duplicated code that should be extracted
+- Functions doing too many things (violating single responsibility)
+- Missing documentation for complex logic
+- Commented-out code that should be removed
+- TODO/FIXME comments for incomplete implementations
 
 **For each:**
 **File:** `path/to/file.ext` (Line ~X)
-**Issue:** What needs work
-**Suggestion:** How to make it better
+**Issue:** What could be better
+**Suggestion:** How to improve it
 
 ---
 
 ## SECTION: CODE_QUALITY
 
-Share your thoughts on the code quality:
+Evaluate the quality of the implementation:
 
-### Design Approach
-- Is this a solid way to solve the problem?
-- Does it fit well with how the rest of the code works?
-- Could it be done more simply?
+### Architecture & Design
+- Does the solution follow good design principles (SOLID, separation of concerns)?
+- Is the abstraction level appropriate?
+- Does it integrate well with existing patterns in the codebase?
+- Are there simpler approaches that would work as well?
+- Any over-engineering or premature optimization?
 
-### Readability
-- Is the code easy to follow?
-- Are names clear and descriptive?
-- Is it well organized?
-- Are comments helpful (not too many, not too few)?
-- Any confusing parts that could be clearer?
+### Code Clarity
+- Is the code self-documenting with clear names?
+- Is the logic flow easy to trace?
+- Are functions and classes focused on a single responsibility?
+- Is the code organized logically?
+- Are comments used appropriately (why, not what)?
 
 ### Coding Standards
-- Does it follow the project's conventions?
-- Is code duplicated anywhere?
-- Any known bad practices or common mistakes?
+- Consistent with project style and conventions?
+- Following language-specific best practices?
+- Avoiding anti-patterns?
+- DRY principle followed (no unnecessary duplication)?
+- Proper use of type systems (TypeScript types, PHP types, etc.)?
 
-### Performance
-- Any obvious slowdowns?
-- Inefficient ways of doing things?
-- Too many database or API calls?
-- Memory usage concerns?
-- Could caching help?
+### Performance & Efficiency
+- Any N+1 query problems or unnecessary database calls?
+- Inefficient algorithms (could use better data structures)?
+- Unnecessary re-rendering or re-computation?
+- Memory usage appropriate for the task?
+- Opportunities for caching or memoization?
 
-### Tests
-- Are there tests for the new code?
-- Do tests cover the important scenarios?
-- Are tests easy to understand?
+### Testing
+- Are there tests for the new functionality?
+- Do tests cover edge cases and error paths?
+- Are tests maintainable and clear?
+- Is test coverage adequate for critical paths?
 
-**Be specific with file names and line numbers. Focus on things that actually matter.**
+**Be specific with file paths and line numbers. Focus on issues that meaningfully impact code quality, security, or maintainability.**
 
 ---
 
 ## SECTION: POSITIVE_HIGHLIGHTS
 
-### What's Done Well ✅
+### What's Done Well
 
-Call out 2-5 things that are genuinely good:
-- Clever or clean solutions
-- Good error handling
-- Smart performance improvements
-- Clear, well-organized code
-- Good test coverage
-- Helpful documentation
-- Smart design choices
-- Security done right
+Highlight 2-5 things that demonstrate good engineering:
+- Well-structured, clean solutions
+- Proper error handling and validation
+- Good security practices (input sanitization, authentication)
+- Performance optimizations
+- Clear, maintainable code
+- Comprehensive test coverage
+- Good documentation or helpful comments
+- Smart use of design patterns
+- Defensive programming techniques
 
-Be genuine - highlight the actual good work here.
+Be specific about what's good and why it matters.
 
 ---
 
 ## SECTION: SUMMARY
 
 ### Overview
-In 2-4 sentences, summarize:
-- What this pull request does
-- Your overall impression of the code quality
-- The main concern or what stands out most
+In 2-4 sentences:
+- What this pull request accomplishes
+- Overall assessment of code quality and implementation
+- Most significant concern or notable achievement
 
 ### Recommendation
-**Pick one:**
-- ✅ **APPROVE** - Ready to merge
-- 🔄 **REQUEST CHANGES** - Must fix issues first
-- 💬 **COMMENT** - Minor suggestions, can merge as-is
+**Choose one:**
+- **APPROVE** - Code is production-ready, no blocking issues
+- **REQUEST CHANGES** - Critical issues must be fixed before merge
+- **COMMENT** - Suggestions provided but not blocking merge
 
 ### Merge Readiness: X/10
-Why this score in one sentence.
+Justify the score based on code quality, security, test coverage, and impact.
 
 ---
 
-**Keep in mind:**
-- Match your review length to the change size - small changes need short reviews
-- Always mention which files and roughly which lines
-- Focus on what actually impacts the code working correctly and safely
-- Suggest fixes, don't just point out problems
-- Be honest and direct - praise good work, clearly identify real issues
+**Review Guidelines:**
+- Match depth to PR size: small changes need focused reviews, large changes need thorough analysis
+- Always specify file paths and approximate line numbers for issues
+- Prioritize security vulnerabilities and breaking bugs over style preferences
+- Provide actionable solutions, not just problem identification
+- Consider how changes interact with unchanged code
+- Be direct and honest: recognize good work and clearly flag real problems
 PROMPT;
 }
