@@ -110,21 +110,62 @@ function handleGetPRDetails() {
         return;
     }
 
-    // Get PR details
-    $command = "gh pr view $pr_number --repo $repo --json title,body,author,files,additions,deletions,commits";
+    // Get PR details with more fields
+    $command = "gh pr view $pr_number --repo $repo --json title,body,author,files,additions,deletions,commits,state,createdAt,updatedAt,mergeable,labels,reviewDecision,url,headRefName,baseRefName,isDraft";
     $pr_data = executeGhCommand($command);
-    
+
     if (isset($pr_data['error'])) {
         http_response_code(500);
         echo json_encode($pr_data);
         return;
     }
-    
+
     // Get PR diff
     $diff_command = "gh pr diff $pr_number --repo $repo";
     $diff_output = [];
     exec($diff_command . ' 2>&1', $diff_output, $return_var);
     $pr_data['diff'] = implode("\n", $diff_output);
-    
+
+    // Get PR comments/conversation
+    $comments_command = "gh api repos/$repo/issues/$pr_number/comments --jq '.[] | {author: .user.login, body: .body, createdAt: .created_at, id: .id}'";
+    $comments_output = [];
+    exec($comments_command . ' 2>&1', $comments_output, $return_var);
+
+    $comments = [];
+    if ($return_var === 0 && !empty($comments_output)) {
+        $jsonString = implode("\n", $comments_output);
+        // Parse multiple JSON objects (one per line)
+        $lines = explode("\n", $jsonString);
+        foreach ($lines as $line) {
+            if (!empty(trim($line))) {
+                $comment = json_decode($line, true);
+                if ($comment) {
+                    $comments[] = $comment;
+                }
+            }
+        }
+    }
+    $pr_data['comments'] = $comments;
+
+    // Get PR review comments (code review comments)
+    $review_comments_command = "gh api repos/$repo/pulls/$pr_number/comments --jq '.[] | {author: .user.login, body: .body, path: .path, line: .line, createdAt: .created_at, id: .id}'";
+    $review_comments_output = [];
+    exec($review_comments_command . ' 2>&1', $review_comments_output, $return_var);
+
+    $reviewComments = [];
+    if ($return_var === 0 && !empty($review_comments_output)) {
+        $jsonString = implode("\n", $review_comments_output);
+        $lines = explode("\n", $jsonString);
+        foreach ($lines as $line) {
+            if (!empty(trim($line))) {
+                $comment = json_decode($line, true);
+                if ($comment) {
+                    $reviewComments[] = $comment;
+                }
+            }
+        }
+    }
+    $pr_data['reviewComments'] = $reviewComments;
+
     echo json_encode(['pr' => $pr_data]);
 }

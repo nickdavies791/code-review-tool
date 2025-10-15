@@ -17,6 +17,9 @@ const prDetails = ref(null)
 const showModal = ref(false)
 const activeTab = ref('actionable')
 const modalActiveTab = ref('actionable')
+const prInfoTab = ref('overview')
+const showPRDetails = ref(false)
+const loadingPRDetails = ref(false)
 
 const openModal = () => {
   showModal.value = true
@@ -190,17 +193,48 @@ const generateReview = async () => {
   }
 }
 
+// Toggle PR details visibility
+const togglePRDetails = async () => {
+  if (!showPRDetails.value && !prDetails.value) {
+    // Fetch PR details if not already loaded
+    loadingPRDetails.value = true
+    try {
+      const response = await axios.get(`/api/pr-details?repo=${encodeURIComponent(props.repo)}&number=${props.pr.number}`)
+      prDetails.value = response.data.pr
+    } catch (err) {
+      console.error('Failed to fetch PR details:', err)
+      error.value = 'Failed to load PR details'
+    } finally {
+      loadingPRDetails.value = false
+    }
+  }
+  showPRDetails.value = !showPRDetails.value
+}
+
 // Reset review when PR changes, but check for existing review
-watch(() => props.pr, () => {
+watch(() => props.pr, async () => {
   review.value = null
   prDetails.value = null
   error.value = null
+  prInfoTab.value = 'overview'
+  showPRDetails.value = false
+  loadingPRDetails.value = false
 
   // Check if we have an existing review for this PR
   if (props.pr) {
     checkExistingReview()
   }
 }, { immediate: true })
+
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 </script>
 
 <template>
@@ -209,20 +243,143 @@ watch(() => props.pr, () => {
       <h2 class="review-title">
         PR #{{ pr.number }}: {{ pr.title }}
       </h2>
-      <button
-        class="btn"
-        @click="generateReview"
-        :disabled="loading"
-      >
-        <span v-if="loading">Reviewing...</span>
-        <span v-else-if="review">Re-review</span>
-        <span v-else>Review with AI</span>
-      </button>
+      <div class="header-actions">
+        <button
+          class="btn-secondary"
+          @click="togglePRDetails"
+          :disabled="loadingPRDetails"
+        >
+          <span v-if="loadingPRDetails">Loading...</span>
+          <span v-else>{{ showPRDetails ? 'Hide' : 'Show' }} PR Details</span>
+        </button>
+        <button
+          class="btn"
+          @click="generateReview"
+          :disabled="loading"
+        >
+          <span v-if="loading">Reviewing...</span>
+          <span v-else-if="review">Re-review</span>
+          <span v-else>Review with AI</span>
+        </button>
+      </div>
     </div>
 
     <div class="review-body">
       <div v-if="error" class="error">
         {{ error }}
+      </div>
+
+      <!-- PR Details Section (collapsible) -->
+      <div v-if="showPRDetails && prDetails && !loading" class="pr-details-section">
+        <div class="pr-details-tabs">
+          <button
+            class="pr-tab"
+            :class="{ active: prInfoTab === 'overview' }"
+            @click="prInfoTab = 'overview'"
+          >
+            Overview
+          </button>
+          <button
+            class="pr-tab"
+            :class="{ active: prInfoTab === 'files' }"
+            @click="prInfoTab = 'files'"
+          >
+            Files ({{ prDetails.files?.length || 0 }})
+          </button>
+          <button
+            class="pr-tab"
+            :class="{ active: prInfoTab === 'commits' }"
+            @click="prInfoTab = 'commits'"
+          >
+            Commits ({{ prDetails.commits?.length || 0 }})
+          </button>
+          <button
+            class="pr-tab"
+            :class="{ active: prInfoTab === 'conversation' }"
+            @click="prInfoTab = 'conversation'"
+          >
+            Conversation ({{ (prDetails.comments?.length || 0) + (prDetails.reviewComments?.length || 0) }})
+          </button>
+        </div>
+
+        <div class="pr-details-content">
+          <!-- Overview Tab -->
+          <div v-if="prInfoTab === 'overview'" class="pr-overview">
+            <div class="pr-meta-info">
+              <div class="pr-stat">
+                <span class="stat-label">State:</span>
+                <span class="stat-value" :class="prDetails.state">{{ prDetails.state }}</span>
+              </div>
+              <div class="pr-stat">
+                <span class="stat-label">Created:</span>
+                <span class="stat-value">{{ formatDate(prDetails.createdAt) }}</span>
+              </div>
+              <div class="pr-stat">
+                <span class="stat-label">Updated:</span>
+                <span class="stat-value">{{ formatDate(prDetails.updatedAt) }}</span>
+              </div>
+              <div class="pr-stat">
+                <span class="stat-label">Changes:</span>
+                <span class="stat-value">+{{ prDetails.additions }} -{{ prDetails.deletions }}</span>
+              </div>
+              <div class="pr-stat">
+                <span class="stat-label">Branch:</span>
+                <span class="stat-value">{{ prDetails.headRefName }} → {{ prDetails.baseRefName }}</span>
+              </div>
+            </div>
+
+            <div v-if="prDetails.body" class="pr-description">
+              <h4 class="section-title">Description</h4>
+              <div class="markdown-content" v-html="marked.parse(prDetails.body || '')"></div>
+            </div>
+          </div>
+
+          <!-- Files Tab -->
+          <div v-if="prInfoTab === 'files'" class="pr-files">
+            <div v-for="file in prDetails.files" :key="file.path" class="file-item">
+              <div class="file-header">
+                <span class="file-path">{{ file.path }}</span>
+                <span class="file-changes">+{{ file.additions }} -{{ file.deletions }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Commits Tab -->
+          <div v-if="prInfoTab === 'commits'" class="pr-commits">
+            <div v-for="commit in prDetails.commits" :key="commit.oid" class="commit-item">
+              <div class="commit-message">{{ commit.messageHeadline }}</div>
+              <div class="commit-meta">
+                <span>{{ commit.authors?.[0]?.login || 'Unknown' }}</span>
+                <span>•</span>
+                <span>{{ commit.oid.substring(0, 7) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Conversation Tab -->
+          <div v-if="prInfoTab === 'conversation'" class="pr-conversation">
+            <div v-if="!prDetails.comments?.length && !prDetails.reviewComments?.length" class="empty-conversation">
+              No comments yet
+            </div>
+
+            <div v-for="comment in prDetails.comments" :key="comment.id" class="comment-item">
+              <div class="comment-header">
+                <strong>{{ comment.author }}</strong>
+                <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+              </div>
+              <div class="comment-body">{{ comment.body }}</div>
+            </div>
+
+            <div v-for="comment in prDetails.reviewComments" :key="comment.id" class="comment-item review-comment">
+              <div class="comment-header">
+                <strong>{{ comment.author }}</strong>
+                <span class="comment-location">{{ comment.path }}:{{ comment.line }}</span>
+                <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+              </div>
+              <div class="comment-body">{{ comment.body }}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="loading" class="loading-container">
@@ -355,8 +512,38 @@ watch(() => props.pr, () => {
       </div>
 
       <div v-else class="empty-state">
-        <h3>Ready to Review</h3>
-        <p>Click "Review with AI" to start the code review</p>
+        <div class="empty-state-icon">
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 16v-4"></path>
+            <path d="M12 8h.01"></path>
+          </svg>
+        </div>
+        <h3 class="empty-state-title">Ready to Review</h3>
+        <p class="empty-state-text">Click <strong>"Review with AI"</strong> above to start an intelligent code review of this pull request</p>
+        <div class="empty-state-features">
+          <div class="feature-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Code Quality Analysis
+          </div>
+          <div class="feature-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Security Checks
+          </div>
+          <div class="feature-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            Performance Tips
+          </div>
+        </div>
+        <p class="empty-state-hint">Want to see PR details first? Click <strong>"Show PR Details"</strong> for commits, files, and conversation.</p>
       </div>
     </div>
 
@@ -455,13 +642,19 @@ watch(() => props.pr, () => {
 }
 
 .review-header {
-  padding: 2rem 2.5rem;
+  padding: 1.5rem 2rem;
   background: var(--bg-card);
   border-bottom: 2px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1.5rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .review-title {
@@ -476,6 +669,9 @@ watch(() => props.pr, () => {
 .review-body {
   padding: 2.5rem;
   background: var(--bg-card);
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .review-body::-webkit-scrollbar {
@@ -534,20 +730,20 @@ watch(() => props.pr, () => {
   padding: 0.75rem 1.5rem;
   background: var(--bg-elevated);
   color: var(--text);
-  border: 2px solid var(--border);
+  border: none;
   border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  box-shadow: 0 1px 2px var(--shadow);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--primary);
+  background: #f3f4f6;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px var(--shadow);
+  box-shadow: 0 2px 4px var(--shadow);
 }
 
 .btn-secondary:disabled {
@@ -1112,5 +1308,331 @@ watch(() => props.pr, () => {
   justify-content: flex-end;
   background: var(--bg-hover);
   border-radius: 0 0 20px 20px;
+}
+
+/* PR Details Section */
+.pr-details-section {
+  margin-bottom: 2.5rem;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.pr-details-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--bg-hover);
+  border-bottom: 2px solid var(--border);
+  padding: 0 1.5rem;
+}
+
+.pr-tab {
+  padding: 0.625rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  bottom: -2px;
+}
+
+.pr-tab:hover {
+  color: var(--text);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.pr-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--bg-card);
+}
+
+.pr-details-content {
+  padding: 1.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.pr-overview .pr-meta-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--bg-hover);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.pr-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 0.8rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stat-value.OPEN {
+  color: var(--secondary);
+}
+
+.stat-value.MERGED {
+  color: var(--primary);
+}
+
+.stat-value.CLOSED {
+  color: #dc2626;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.pr-description {
+  margin-top: 2rem;
+}
+
+.markdown-content {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.pr-files, .pr-commits, .pr-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.file-item {
+  padding: 1rem 1.25rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.file-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--primary-light);
+}
+
+.file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-path {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.875rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.file-changes {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+.commit-item {
+  padding: 1rem 1.25rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.commit-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--primary-light);
+}
+
+.commit-message {
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.commit-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.comment-item {
+  padding: 1.25rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.comment-item.review-comment {
+  border-left: 4px solid var(--primary);
+}
+
+.comment-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.comment-header strong {
+  color: var(--text);
+}
+
+.comment-date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.comment-location {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.comment-body {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.empty-conversation {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* Enhanced Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  flex: 1;
+}
+
+.empty-state-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1.5rem;
+  color: var(--primary);
+  opacity: 0.8;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.empty-state-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.empty-state-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  max-width: 500px;
+  line-height: 1.6;
+}
+
+.empty-state-text strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.empty-state-features {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.feature-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  transition: all 0.2s;
+}
+
+.feature-pill:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(16, 185, 129, 0.08));
+  border-color: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.feature-pill svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.empty-state-hint {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  max-width: 450px;
+  line-height: 1.5;
+  margin-top: 1rem;
+  padding: 1rem 1.5rem;
+  background: var(--bg-hover);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.empty-state-hint strong {
+  color: var(--text);
+  font-weight: 600;
 }
 </style>
