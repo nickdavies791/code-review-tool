@@ -15,6 +15,9 @@ const showDropdown = ref(false)
 const showHistoryModal = ref(false)
 const savedReviews = ref([])
 const historyFilter = ref('')
+const showSettingsModal = ref(false)
+const favoriteRepos = ref([])
+const settingsSearch = ref('')
 
 // Fetch user's GitHub repositories
 const fetchUserRepos = async () => {
@@ -30,9 +33,23 @@ const fetchUserRepos = async () => {
   }
 }
 
+// Load favorite repos from localStorage
+const loadFavoriteRepos = () => {
+  const saved = localStorage.getItem('quode_favorite_repos')
+  if (saved) {
+    favoriteRepos.value = JSON.parse(saved)
+  }
+}
+
+// Save favorite repos to localStorage
+const saveFavoriteRepos = () => {
+  localStorage.setItem('quode_favorite_repos', JSON.stringify(favoriteRepos.value))
+}
+
 // Load repos on component mount
 onMounted(() => {
   fetchUserRepos()
+  loadFavoriteRepos()
 })
 
 const fetchPRs = async () => {
@@ -72,9 +89,19 @@ const formatDate = (dateString) => {
 }
 
 const filteredRepos = computed(() => {
-  if (!searchQuery.value) return userRepos.value
-  return userRepos.value.filter(r =>
+  // If favorites are set, only show favorite repos
+  let reposToShow = favoriteRepos.value.length > 0 ? favoriteRepos.value : userRepos.value
+
+  if (!searchQuery.value) return reposToShow
+  return reposToShow.filter(r =>
     r.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
+})
+
+const filteredAllRepos = computed(() => {
+  if (!settingsSearch.value) return userRepos.value
+  return userRepos.value.filter(r =>
+    r.toLowerCase().includes(settingsSearch.value.toLowerCase())
   )
 })
 
@@ -169,6 +196,37 @@ const goHome = () => {
   selectedPR.value = null
   error.value = null
 }
+
+// Settings Modal Functions
+const openSettings = () => {
+  showSettingsModal.value = true
+}
+
+const closeSettings = () => {
+  showSettingsModal.value = false
+  settingsSearch.value = ''
+}
+
+const toggleFavoriteRepo = (repoName) => {
+  const index = favoriteRepos.value.indexOf(repoName)
+  if (index > -1) {
+    favoriteRepos.value.splice(index, 1)
+  } else {
+    favoriteRepos.value.push(repoName)
+  }
+  saveFavoriteRepos()
+}
+
+const isFavorite = (repoName) => {
+  return favoriteRepos.value.includes(repoName)
+}
+
+const clearAllFavorites = () => {
+  if (confirm('Are you sure you want to clear all favorite repositories?')) {
+    favoriteRepos.value = []
+    saveFavoriteRepos()
+  }
+}
 </script>
 
 <template>
@@ -205,6 +263,9 @@ const goHome = () => {
               <div class="dropdown-item-empty">No repositories found</div>
             </div>
           </div>
+          <button class="btn-secondary" @click="openSettings">
+            Settings
+          </button>
           <button class="btn-secondary" @click="loadReviewHistory">
             History
           </button>
@@ -297,6 +358,82 @@ const goHome = () => {
         </div>
       </div>
     </main>
+
+    <!-- Settings Modal -->
+    <Teleport to="body">
+      <div v-if="showSettingsModal" class="modal-overlay" @click="closeSettings">
+        <div class="history-modal" @click.stop>
+          <div class="history-header">
+            <h2 class="history-title">Repository Settings</h2>
+            <button class="modal-close" @click="closeSettings">×</button>
+          </div>
+
+          <div class="settings-info">
+            <p class="settings-description">
+              Select your favorite repositories to display in the dropdown.
+              If no favorites are selected, all repositories will be shown.
+            </p>
+            <div class="settings-stats">
+              <span class="stat-item">
+                <strong>{{ favoriteRepos.length }}</strong> favorites selected
+              </span>
+              <span class="stat-separator">•</span>
+              <span class="stat-item">
+                <strong>{{ userRepos.length }}</strong> total repos
+              </span>
+            </div>
+          </div>
+
+          <div class="history-search">
+            <input
+              v-model="settingsSearch"
+              type="text"
+              class="input"
+              placeholder="Search repositories..."
+            />
+            <button
+              v-if="favoriteRepos.length > 0"
+              class="btn-clear-favorites"
+              @click="clearAllFavorites"
+            >
+              Clear All Favorites
+            </button>
+          </div>
+
+          <div class="history-body">
+            <div v-if="filteredAllRepos.length === 0" class="history-empty">
+              <p>No repositories found.</p>
+            </div>
+
+            <div v-else class="settings-list">
+              <div
+                v-for="repoName in filteredAllRepos"
+                :key="repoName"
+                class="settings-item"
+                :class="{ 'is-favorite': isFavorite(repoName) }"
+                @click="toggleFavoriteRepo(repoName)"
+              >
+                <div class="settings-checkbox">
+                  <input
+                    type="checkbox"
+                    :checked="isFavorite(repoName)"
+                    @click.stop="toggleFavoriteRepo(repoName)"
+                  />
+                </div>
+                <div class="settings-repo-name">{{ repoName }}</div>
+                <div v-if="isFavorite(repoName)" class="favorite-badge">
+                  ★
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-footer">
+            <button class="btn" @click="closeSettings">Done</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Review History Modal -->
     <Teleport to="body">
