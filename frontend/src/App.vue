@@ -18,6 +18,9 @@ const historyFilter = ref('')
 const showSettingsModal = ref(false)
 const favoriteRepos = ref([])
 const settingsSearch = ref('')
+const settingsTab = ref('repos')
+const customGuidelines = ref('')
+const guidelinesFileName = ref('')
 
 // Fetch user's GitHub repositories
 const fetchUserRepos = async () => {
@@ -41,15 +44,59 @@ const loadFavoriteRepos = () => {
   }
 }
 
+// Load custom guidelines from localStorage
+const loadCustomGuidelines = () => {
+  const saved = localStorage.getItem('quode_custom_guidelines')
+  if (saved) {
+    const data = JSON.parse(saved)
+    customGuidelines.value = data.content || ''
+    guidelinesFileName.value = data.fileName || ''
+  }
+}
+
 // Save favorite repos to localStorage
 const saveFavoriteRepos = () => {
   localStorage.setItem('quode_favorite_repos', JSON.stringify(favoriteRepos.value))
+}
+
+// Save custom guidelines to localStorage
+const saveCustomGuidelines = () => {
+  const data = {
+    content: customGuidelines.value,
+    fileName: guidelinesFileName.value,
+    updatedAt: new Date().toISOString()
+  }
+  localStorage.setItem('quode_custom_guidelines', JSON.stringify(data))
+}
+
+// Handle file upload
+const handleGuidelinesFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    customGuidelines.value = e.target.result
+    guidelinesFileName.value = file.name
+    saveCustomGuidelines()
+  }
+  reader.readAsText(file)
+}
+
+// Clear guidelines
+const clearGuidelines = () => {
+  if (confirm('Are you sure you want to clear your custom guidelines?')) {
+    customGuidelines.value = ''
+    guidelinesFileName.value = ''
+    localStorage.removeItem('quode_custom_guidelines')
+  }
 }
 
 // Load repos on component mount
 onMounted(() => {
   fetchUserRepos()
   loadFavoriteRepos()
+  loadCustomGuidelines()
 })
 
 const fetchPRs = async () => {
@@ -205,6 +252,7 @@ const openSettings = () => {
 const closeSettings = () => {
   showSettingsModal.value = false
   settingsSearch.value = ''
+  settingsTab.value = 'repos'
 }
 
 const toggleFavoriteRepo = (repoName) => {
@@ -234,7 +282,10 @@ const clearAllFavorites = () => {
     <header class="app-header">
       <div class="header-content">
         <div class="logo logo-clickable" @click="goHome">
-          <h1 class="app-title">Quode</h1>
+          <div class="title-container">
+            <h1 class="app-title">Quode</h1>
+            <span class="ai-badge">AI</span>
+          </div>
           <p class="app-slogan">Review Smarter, Ship Faster</p>
         </div>
         <div class="header-actions">
@@ -319,19 +370,26 @@ const clearAllFavorites = () => {
 
         <div v-else-if="!prs.length && !error" class="empty-state">
           <div class="welcome-header">
-            <h2 class="empty-title">Welcome to Quode</h2>
-            <p class="empty-text">AI-powered code review that helps you ship quality code faster</p>
+            <div class="welcome-title-container">
+              <h2 class="empty-title">Welcome to Quode</h2>
+              <span class="ai-badge-large">AI</span>
+            </div>
+            <p class="empty-text">Intelligent code review with real-time complexity analysis and AI-powered insights</p>
           </div>
           <div class="features">
             <div class="feature-card">
               <div class="feature-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 11l3 3L22 4"></path>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
+                  <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
+                  <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
                 </svg>
               </div>
-              <h3 class="feature-title">Deep Code Analysis</h3>
-              <p class="feature-text">Comprehensive quality checks, best practices, and architectural insights powered by AI</p>
+              <h3 class="feature-title">Complexity Scoring</h3>
+              <p class="feature-text">Real cyclomatic and cognitive complexity analysis of your code changes, showing exactly what makes each file complex</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">
@@ -340,17 +398,18 @@ const clearAllFavorites = () => {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
               </div>
-              <h3 class="feature-title">Security First</h3>
-              <p class="feature-text">Identify vulnerabilities, security risks, and potential exploits before they reach production</p>
+              <h3 class="feature-title">Security Pattern Detection</h3>
+              <p class="feature-text">Automatically detect dangerous patterns like eval(), innerHTML, and potential secrets in your code</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
               </div>
-              <h3 class="feature-title">Performance Insights</h3>
-              <p class="feature-text">Smart optimization suggestions and efficiency improvements for faster, better code</p>
+              <h3 class="feature-title">AI-Powered Review</h3>
+              <p class="feature-text">Comprehensive code quality analysis with actionable feedback on architecture, best practices, and improvements</p>
             </div>
           </div>
           <div class="getting-started">
@@ -358,7 +417,7 @@ const clearAllFavorites = () => {
           </div>
         </div>
 
-        <ReviewPanel v-else-if="selectedPR" :pr="selectedPR" :repo="repo" />
+        <ReviewPanel v-else-if="selectedPR" :pr="selectedPR" :repo="repo" :customGuidelines="customGuidelines" />
 
         <div v-else-if="prs.length" class="empty-state">
           <h2 class="empty-title">Select a Pull Request</h2>
@@ -372,65 +431,148 @@ const clearAllFavorites = () => {
       <div v-if="showSettingsModal" class="modal-overlay" @click="closeSettings">
         <div class="history-modal" @click.stop>
           <div class="history-header">
-            <h2 class="history-title">Repository Settings</h2>
+            <h2 class="history-title">Settings</h2>
             <button class="modal-close" @click="closeSettings">×</button>
           </div>
 
-          <div class="settings-info">
-            <p class="settings-description">
-              Select your favorite repositories to display in the dropdown.
-              If no favorites are selected, all repositories will be shown.
-            </p>
-            <div class="settings-stats">
-              <span class="stat-item">
-                <strong>{{ favoriteRepos.length }}</strong> favorites selected
-              </span>
-              <span class="stat-separator">•</span>
-              <span class="stat-item">
-                <strong>{{ userRepos.length }}</strong> total repos
-              </span>
-            </div>
-          </div>
-
-          <div class="history-search">
-            <input
-              v-model="settingsSearch"
-              type="text"
-              class="input"
-              placeholder="Search repositories..."
-            />
+          <!-- Settings Tabs -->
+          <div class="settings-tabs">
             <button
-              v-if="favoriteRepos.length > 0"
-              class="btn-clear-favorites"
-              @click="clearAllFavorites"
+              class="settings-tab"
+              :class="{ active: settingsTab === 'repos' }"
+              @click="settingsTab = 'repos'"
             >
-              Clear All Favorites
+              Repositories
+            </button>
+            <button
+              class="settings-tab"
+              :class="{ active: settingsTab === 'guidelines' }"
+              @click="settingsTab = 'guidelines'"
+            >
+              Review Guidelines
             </button>
           </div>
 
-          <div class="history-body">
-            <div v-if="filteredAllRepos.length === 0" class="history-empty">
-              <p>No repositories found.</p>
+          <!-- Tab Content Container -->
+          <div class="settings-tab-content">
+            <!-- Repositories Tab -->
+            <div v-if="settingsTab === 'repos'" class="settings-tab-panel">
+              <div class="settings-info">
+                <p class="settings-description">
+                  Select your favorite repositories to display in the dropdown.
+                  If no favorites are selected, all repositories will be shown.
+                </p>
+                <div class="settings-stats">
+                  <span class="stat-item">
+                    <strong>{{ favoriteRepos.length }}</strong> favorites selected
+                  </span>
+                  <span class="stat-separator">•</span>
+                  <span class="stat-item">
+                    <strong>{{ userRepos.length }}</strong> total repos
+                  </span>
+                </div>
+              </div>
+
+              <div class="history-search">
+                <input
+                  v-model="settingsSearch"
+                  type="text"
+                  class="input"
+                  placeholder="Search repositories..."
+                />
+                <button
+                  v-if="favoriteRepos.length > 0"
+                  class="btn-clear-favorites"
+                  @click="clearAllFavorites"
+                >
+                  Clear All Favorites
+                </button>
+              </div>
+
+              <div class="history-body">
+                <div v-if="filteredAllRepos.length === 0" class="history-empty">
+                  <p>No repositories found.</p>
+                </div>
+
+                <div v-else class="settings-list">
+                  <div
+                    v-for="repoName in filteredAllRepos"
+                    :key="repoName"
+                    class="settings-item"
+                    :class="{ 'is-favorite': isFavorite(repoName) }"
+                    @click="toggleFavoriteRepo(repoName)"
+                  >
+                    <div class="settings-checkbox">
+                      <input
+                        type="checkbox"
+                        :checked="isFavorite(repoName)"
+                        @click.stop="toggleFavoriteRepo(repoName)"
+                      />
+                    </div>
+                    <div class="settings-repo-name">{{ repoName }}</div>
+                    <div v-if="isFavorite(repoName)" class="favorite-badge">
+                      ★
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div v-else class="settings-list">
-              <div
-                v-for="repoName in filteredAllRepos"
-                :key="repoName"
-                class="settings-item"
-                :class="{ 'is-favorite': isFavorite(repoName) }"
-                @click="toggleFavoriteRepo(repoName)"
-              >
-                <div class="settings-checkbox">
-                  <input
-                    type="checkbox"
-                    :checked="isFavorite(repoName)"
-                    @click.stop="toggleFavoriteRepo(repoName)"
-                  />
+            <!-- Guidelines Tab -->
+            <div v-if="settingsTab === 'guidelines'" class="settings-tab-panel">
+              <div class="settings-info">
+                <p class="settings-description">
+                  Add your company's code review guidelines to customize AI reviews. Upload a file or paste your guidelines below.
+                  These will be included in every AI review.
+                </p>
+                <div v-if="guidelinesFileName" class="settings-stats">
+                  <span class="stat-item">
+                    <strong>Current file:</strong> {{ guidelinesFileName }}
+                  </span>
                 </div>
-                <div class="settings-repo-name">{{ repoName }}</div>
-                <div v-if="isFavorite(repoName)" class="favorite-badge">
-                  ★
+              </div>
+
+              <div class="guidelines-controls">
+                <label class="file-upload-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  Upload File
+                  <input
+                    type="file"
+                    accept=".txt,.md,.doc,.docx"
+                    @change="handleGuidelinesFileUpload"
+                    style="display: none;"
+                  />
+                </label>
+                <button
+                  v-if="customGuidelines"
+                  class="btn-clear-favorites"
+                  @click="clearGuidelines"
+                >
+                  Clear Guidelines
+                </button>
+              </div>
+
+              <div class="history-body">
+                <textarea
+                  v-model="customGuidelines"
+                  class="guidelines-textarea"
+                  placeholder="Paste your code review guidelines here...
+
+Example:
+- Always require JSDoc comments for public functions
+- Ensure error handling for all async operations
+- Follow our naming convention: camelCase for variables, PascalCase for classes
+- All new features must include unit tests"
+                  @blur="saveCustomGuidelines"
+                ></textarea>
+
+                <div v-if="customGuidelines" class="guidelines-preview">
+                  <h4>Preview ({{ customGuidelines.length }} characters)</h4>
+                  <div class="preview-content">{{ customGuidelines.substring(0, 200) }}{{ customGuidelines.length > 200 ? '...' : '' }}</div>
                 </div>
               </div>
             </div>

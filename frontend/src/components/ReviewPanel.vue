@@ -5,7 +5,8 @@ import { marked } from 'marked'
 
 const props = defineProps({
   pr: Object,
-  repo: String
+  repo: String,
+  customGuidelines: String
 })
 
 const loading = ref(false)
@@ -167,7 +168,8 @@ const generateReview = async () => {
     try {
       // Then generate the AI review
       const reviewResponse = await axios.post('/api/review', {
-        pr: prDetails.value
+        pr: prDetails.value,
+        customGuidelines: props.customGuidelines
       })
 
       clearInterval(progressInterval)
@@ -891,8 +893,11 @@ const toggleFileExpanded = (filePath) => {
               </div>
 
               <!-- File Complexity Chart -->
-              <h4 class="section-title" style="margin-top: 2rem;">File Complexity Analysis</h4>
-              <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Click any file to see why it received its complexity score</p>
+              <h4 class="section-title" style="margin-top: 2rem;">File-by-File Breakdown</h4>
+              <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                Each file is analyzed for cyclomatic complexity (decision paths), cognitive complexity (nesting depth),
+                security patterns, and code quality issues. Click any file to see the detailed breakdown.
+              </p>
               <div class="complexity-chart">
                 <div
                   v-for="file in complexityData.files"
@@ -988,30 +993,29 @@ const toggleFileExpanded = (filePath) => {
           </svg>
         </div>
         <h3 class="empty-state-title">Ready to Review</h3>
-        <p class="empty-state-text">Click <strong>"Review with AI"</strong> above to start an intelligent code review of this pull request</p>
+        <p class="empty-state-text">Click <strong>"Review with AI"</strong> to get comprehensive analysis with complexity scoring</p>
         <div class="empty-state-features">
           <div class="feature-pill">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
             </svg>
-            Code Quality Analysis
+            Complexity Analysis
           </div>
           <div class="feature-pill">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
-            Security Checks
+            Security Pattern Detection
           </div>
           <div class="feature-pill">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
-            Performance Tips
+            AI Code Review
           </div>
         </div>
-        <p class="empty-state-hint">Want to see PR details first? Click <strong>"Show PR Details"</strong> for commits, files, and conversation.</p>
       </div>
     </div>
 
