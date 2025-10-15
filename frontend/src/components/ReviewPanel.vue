@@ -20,6 +20,7 @@ const modalActiveTab = ref('actionable')
 const prInfoTab = ref('overview')
 const showPRDetails = ref(false)
 const loadingPRDetails = ref(false)
+const complexityData = ref(null)
 
 const openModal = () => {
   showModal.value = true
@@ -219,12 +220,20 @@ watch(() => props.pr, async () => {
   prInfoTab.value = 'overview'
   showPRDetails.value = false
   loadingPRDetails.value = false
+  complexityData.value = null
 
   // Check if we have an existing review for this PR
   if (props.pr) {
     checkExistingReview()
   }
 }, { immediate: true })
+
+// Calculate complexity when PR details are loaded
+watch(() => prDetails.value, () => {
+  if (prDetails.value) {
+    calculateComplexity()
+  }
+})
 
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString('en-US', {
@@ -234,6 +243,329 @@ const formatDate = (dateString) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Parse diff to extract added lines for each file
+const parseDiffForFile = (diff, filePath) => {
+  const lines = diff.split('\n')
+  const addedLines = []
+  let inFile = false
+  let currentLine = ''
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    // Check if we're in the right file
+    if (line.startsWith('diff --git')) {
+      inFile = line.includes(filePath)
+      continue
+    }
+
+    if (inFile && line.startsWith('+') && !line.startsWith('+++')) {
+      // This is an added line
+      addedLines.push(line.substring(1)) // Remove the '+' prefix
+    }
+  }
+
+  return addedLines.join('\n')
+}
+
+// Calculate cyclomatic complexity from code
+const calculateCyclomaticComplexity = (code) => {
+  let complexity = 1 // Base complexity
+
+  // Control flow keywords that add complexity
+  const patterns = [
+    /\bif\s*\(/g,           // if statements
+    /\belse\s+if\b/g,       // else if
+    /\bfor\s*\(/g,          // for loops
+    /\bwhile\s*\(/g,        // while loops
+    /\bcase\s+/g,           // switch cases
+    /\bcatch\s*\(/g,        // catch blocks
+    /\b\?\s*.+\s*:/g,       // ternary operators
+    /&&/g,                  // logical AND
+    /\|\|/g,                // logical OR
+  ]
+
+  patterns.forEach(pattern => {
+    const matches = code.match(pattern)
+    if (matches) {
+      complexity += matches.length
+    }
+  })
+
+  return complexity
+}
+
+// Calculate cognitive complexity (nesting depth)
+const calculateCognitiveComplexity = (code) => {
+  const lines = code.split('\n')
+  let maxNesting = 0
+  let currentNesting = 0
+  let totalNesting = 0
+  let nestingLines = 0
+
+  lines.forEach(line => {
+    const trimmed = line.trim()
+
+    // Increase nesting on opening braces or keywords
+    if (trimmed.includes('{') ||
+        /^(if|for|while|switch|try|catch|function|class)\s*\(/.test(trimmed)) {
+      currentNesting++
+      maxNesting = Math.max(maxNesting, currentNesting)
+    }
+
+    // Decrease nesting on closing braces
+    if (trimmed.includes('}')) {
+      currentNesting = Math.max(0, currentNesting - 1)
+    }
+
+    if (currentNesting > 0) {
+      totalNesting += currentNesting
+      nestingLines++
+    }
+  })
+
+  const avgNesting = nestingLines > 0 ? totalNesting / nestingLines : 0
+  return { maxNesting, avgNesting }
+}
+
+// Detect security-sensitive patterns
+const detectSecurityPatterns = (code) => {
+  const patterns = [
+    { regex: /eval\s*\(/g, name: 'eval() usage', severity: 'high' },
+    { regex: /innerHTML\s*=/g, name: 'innerHTML assignment', severity: 'high' },
+    { regex: /dangerouslySetInnerHTML/g, name: 'dangerouslySetInnerHTML', severity: 'high' },
+    { regex: /document\.write/g, name: 'document.write()', severity: 'high' },
+    { regex: /new\s+Function\s*\(/g, name: 'Function constructor', severity: 'high' },
+    { regex: /exec\s*\(/g, name: 'exec() call', severity: 'medium' },
+    { regex: /\$\{[^}]*\}/g, name: 'Template literal interpolation', severity: 'low' },
+    { regex: /localStorage|sessionStorage/g, name: 'Browser storage usage', severity: 'low' },
+    { regex: /password|secret|token|apikey/gi, name: 'Potential secrets', severity: 'medium' },
+  ]
+
+  const detected = []
+  patterns.forEach(({ regex, name, severity }) => {
+    const matches = code.match(regex)
+    if (matches) {
+      detected.push({ name, count: matches.length, severity })
+    }
+  })
+
+  return detected
+}
+
+// Detect code quality patterns
+const detectQualityPatterns = (code) => {
+  const patterns = []
+
+  // Long functions (rough estimate by brace depth)
+  const functionMatches = code.match(/function\s+\w+|const\s+\w+\s*=\s*\(/g)
+  if (functionMatches && functionMatches.length > 10) {
+    patterns.push({ name: 'Many functions defined', count: functionMatches.length, type: 'neutral' })
+  }
+
+  // TODO/FIXME comments
+  const todoMatches = code.match(/\/\/\s*(TODO|FIXME|HACK|XXX)/gi)
+  if (todoMatches) {
+    patterns.push({ name: 'TODO/FIXME comments', count: todoMatches.length, type: 'warning' })
+  }
+
+  // Console logs (potential debug code)
+  const consoleMatches = code.match(/console\.(log|warn|error|debug)/g)
+  if (consoleMatches && consoleMatches.length > 3) {
+    patterns.push({ name: 'Console statements', count: consoleMatches.length, type: 'warning' })
+  }
+
+  // Commented code
+  const commentedCode = code.match(/\/\/\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*\(/g)
+  if (commentedCode && commentedCode.length > 5) {
+    patterns.push({ name: 'Commented code blocks', count: commentedCode.length, type: 'warning' })
+  }
+
+  return patterns
+}
+
+// Calculate complexity metrics
+const calculateComplexity = () => {
+  if (!prDetails.value) return
+
+  const files = prDetails.value.files || []
+  const diff = prDetails.value.diff || ''
+
+  const fileMetrics = files.map(file => {
+    const factors = []
+    const path = file.path.toLowerCase()
+
+    // Parse the actual code changes for this file
+    const addedCode = parseDiffForFile(diff, file.path)
+
+    // Calculate cyclomatic complexity
+    const cyclomaticComplexity = calculateCyclomaticComplexity(addedCode)
+
+    // Calculate cognitive complexity
+    const { maxNesting, avgNesting } = calculateCognitiveComplexity(addedCode)
+
+    // Detect security patterns
+    const securityIssues = detectSecurityPatterns(addedCode)
+
+    // Detect quality patterns
+    const qualityIssues = detectQualityPatterns(addedCode)
+
+    let complexity = 0
+
+    // Cyclomatic Complexity Score (0-30 points)
+    if (cyclomaticComplexity > 20) {
+      complexity += 30
+      factors.push({ label: `Very High Cyclomatic Complexity (${cyclomaticComplexity} paths)`, score: 30, type: 'high' })
+    } else if (cyclomaticComplexity > 10) {
+      complexity += 20
+      factors.push({ label: `High Cyclomatic Complexity (${cyclomaticComplexity} paths)`, score: 20, type: 'high' })
+    } else if (cyclomaticComplexity > 5) {
+      complexity += 10
+      factors.push({ label: `Moderate Cyclomatic Complexity (${cyclomaticComplexity} paths)`, score: 10, type: 'medium' })
+    } else {
+      factors.push({ label: `Low Cyclomatic Complexity (${cyclomaticComplexity} paths)`, score: 0, type: 'positive' })
+    }
+
+    // Cognitive Complexity Score (0-25 points)
+    if (maxNesting > 5) {
+      complexity += 25
+      factors.push({ label: `Deep Nesting (max ${maxNesting} levels)`, score: 25, type: 'high' })
+    } else if (maxNesting > 3) {
+      complexity += 15
+      factors.push({ label: `Moderate Nesting (max ${maxNesting} levels)`, score: 15, type: 'medium' })
+    } else if (maxNesting > 1) {
+      complexity += 5
+      factors.push({ label: `Some Nesting (max ${maxNesting} levels)`, score: 5, type: 'low' })
+    }
+
+    // Security Patterns (0-30 points)
+    let securityScore = 0
+    securityIssues.forEach(issue => {
+      const points = issue.severity === 'high' ? 10 : issue.severity === 'medium' ? 5 : 2
+      securityScore += points * issue.count
+      factors.push({
+        label: `${issue.name} (${issue.count}x)`,
+        score: points * issue.count,
+        type: issue.severity === 'high' ? 'high' : 'medium'
+      })
+    })
+    complexity += Math.min(30, securityScore)
+
+    // Change Size Score (0-20 points)
+    const totalChanges = file.additions + file.deletions
+    if (totalChanges > 300) {
+      complexity += 20
+      factors.push({ label: `Very Large Change (${totalChanges} lines)`, score: 20, type: 'high' })
+    } else if (totalChanges > 150) {
+      complexity += 15
+      factors.push({ label: `Large Change (${totalChanges} lines)`, score: 15, type: 'medium' })
+    } else if (totalChanges > 50) {
+      complexity += 8
+      factors.push({ label: `Medium Change (${totalChanges} lines)`, score: 8, type: 'low' })
+    } else {
+      factors.push({ label: `Small Change (${totalChanges} lines)`, score: 0, type: 'positive' })
+    }
+
+    // Quality Issues
+    qualityIssues.forEach(issue => {
+      if (issue.type === 'warning' && issue.count > 5) {
+        factors.push({ label: `${issue.name} (${issue.count})`, score: 5, type: 'medium' })
+        complexity += 5
+      }
+    })
+
+    // File Type Adjustments
+    if (path.includes('test') || path.includes('spec')) {
+      complexity = Math.max(0, complexity - 15)
+      factors.push({ label: 'Test File (Lower Risk)', score: -15, type: 'positive' })
+    }
+
+    if (path.endsWith('.json') || path.endsWith('.md') || path.endsWith('.yml') || path.endsWith('.yaml')) {
+      complexity = Math.max(0, complexity - 20)
+      factors.push({ label: 'Config/Docs File (Lower Risk)', score: -20, type: 'positive' })
+    }
+
+    if (path.endsWith('.css') || path.endsWith('.scss') || path.endsWith('.sass')) {
+      complexity = Math.max(0, complexity - 10)
+      factors.push({ label: 'Stylesheet (Lower Risk)', score: -10, type: 'positive' })
+    }
+
+    // Critical file paths get a boost
+    if (path.includes('auth') || path.includes('login') || path.includes('password')) {
+      complexity += 10
+      factors.push({ label: 'Authentication/Security File', score: 10, type: 'high' })
+    }
+
+    if (path.includes('payment') || path.includes('billing')) {
+      complexity += 10
+      factors.push({ label: 'Payment/Billing File', score: 10, type: 'high' })
+    }
+
+    if (path.includes('api') || path.includes('service')) {
+      complexity += 5
+      factors.push({ label: 'API/Service File', score: 5, type: 'medium' })
+    }
+
+    complexity = Math.max(0, Math.min(100, complexity))
+
+    return {
+      path: file.path,
+      additions: file.additions,
+      deletions: file.deletions,
+      totalChanges,
+      complexity,
+      risk: complexity > 50 ? 'high' : complexity > 25 ? 'medium' : 'low',
+      factors,
+      expanded: false,
+      metrics: {
+        cyclomaticComplexity,
+        maxNesting,
+        avgNesting: avgNesting.toFixed(1),
+        securityIssues: securityIssues.length,
+        qualityIssues: qualityIssues.length
+      }
+    }
+  })
+
+  // Sort by complexity
+  fileMetrics.sort((a, b) => b.complexity - a.complexity)
+
+  // Calculate overall stats
+  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0)
+  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0)
+  const avgComplexity = fileMetrics.reduce((sum, f) => sum + f.complexity, 0) / Math.max(fileMetrics.length, 1)
+
+  const highRiskCount = fileMetrics.filter(f => f.risk === 'high').length
+  const mediumRiskCount = fileMetrics.filter(f => f.risk === 'medium').length
+  const lowRiskCount = fileMetrics.filter(f => f.risk === 'low').length
+
+  const totalCyclomatic = fileMetrics.reduce((sum, f) => sum + f.metrics.cyclomaticComplexity, 0)
+  const maxNestingOverall = Math.max(...fileMetrics.map(f => f.metrics.maxNesting))
+
+  complexityData.value = {
+    files: fileMetrics,
+    stats: {
+      totalFiles: files.length,
+      totalAdditions,
+      totalDeletions,
+      totalChanges: totalAdditions + totalDeletions,
+      avgComplexity: Math.round(avgComplexity),
+      highRiskCount,
+      mediumRiskCount,
+      lowRiskCount,
+      totalCyclomaticComplexity: totalCyclomatic,
+      maxNestingDepth: maxNestingOverall
+    }
+  }
+}
+
+const toggleFileExpanded = (filePath) => {
+  const file = complexityData.value.files.find(f => f.path === filePath)
+  if (file) {
+    file.expanded = !file.expanded
+  }
 }
 </script>
 
@@ -467,6 +799,13 @@ const formatDate = (dateString) => {
           </button>
           <button
             class="tab"
+            :class="{ active: activeTab === 'complexity' }"
+            @click="activeTab = 'complexity'"
+          >
+            Complexity
+          </button>
+          <button
+            class="tab"
             :class="{ active: activeTab === 'highlights' }"
             @click="activeTab = 'highlights'"
           >
@@ -494,6 +833,135 @@ const formatDate = (dateString) => {
             <div v-if="qualityHtml" class="review-content" v-html="qualityHtml"></div>
             <div v-else class="tab-empty">
               <p>No code quality analysis found in this section.</p>
+            </div>
+          </div>
+          <div v-if="activeTab === 'complexity'">
+            <div v-if="complexityData" class="complexity-content">
+              <!-- Overall Stats -->
+              <div class="complexity-stats">
+                <div class="complexity-stat-card">
+                  <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                      <path d="M9 11l3 3L22 4"></path>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value-lg">{{ complexityData.stats.avgComplexity }}</div>
+                    <div class="stat-label-lg">Avg Complexity</div>
+                  </div>
+                </div>
+                <div class="complexity-stat-card">
+                  <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #f87171);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value-lg">{{ complexityData.stats.highRiskCount }}</div>
+                    <div class="stat-label-lg">High Risk Files</div>
+                  </div>
+                </div>
+                <div class="complexity-stat-card">
+                  <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value-lg">{{ complexityData.stats.mediumRiskCount }}</div>
+                    <div class="stat-label-lg">Medium Risk Files</div>
+                  </div>
+                </div>
+                <div class="complexity-stat-card">
+                  <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <div class="stat-content">
+                    <div class="stat-value-lg">{{ complexityData.stats.lowRiskCount }}</div>
+                    <div class="stat-label-lg">Low Risk Files</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- File Complexity Chart -->
+              <h4 class="section-title" style="margin-top: 2rem;">File Complexity Analysis</h4>
+              <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Click any file to see why it received its complexity score</p>
+              <div class="complexity-chart">
+                <div
+                  v-for="file in complexityData.files"
+                  :key="file.path"
+                  class="complexity-bar-item"
+                  :class="{ expanded: file.expanded }"
+                >
+                  <div class="complexity-bar-header" @click="toggleFileExpanded(file.path)">
+                    <div class="complexity-bar-info">
+                      <span class="complexity-file-path">{{ file.path }}</span>
+                      <div class="complexity-bar-meta">
+                        <span class="complexity-changes">+{{ file.additions }} -{{ file.deletions }}</span>
+                        <span class="complexity-score" :class="'risk-' + file.risk">{{ Math.round(file.complexity) }}</span>
+                        <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="complexity-bar-track">
+                      <div
+                        class="complexity-bar-fill"
+                        :class="'risk-' + file.risk"
+                        :style="{ width: file.complexity + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <!-- Expandable Breakdown -->
+                  <div v-if="file.expanded" class="complexity-breakdown">
+                    <h5 class="breakdown-title">Why this score?</h5>
+                    <div class="breakdown-factors">
+                      <div
+                        v-for="(factor, idx) in file.factors"
+                        :key="idx"
+                        class="factor-item"
+                        :class="'factor-' + factor.type"
+                      >
+                        <div class="factor-label">{{ factor.label }}</div>
+                        <div class="factor-score">{{ factor.score > 0 ? '+' : '' }}{{ factor.score }}</div>
+                      </div>
+                    </div>
+                    <div class="breakdown-total">
+                      <span>Total Complexity Score</span>
+                      <span class="total-score">{{ Math.round(file.complexity) }} / 100</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Risk Legend -->
+              <div class="complexity-legend">
+                <div class="legend-title">Understanding Risk Levels</div>
+                <div class="legend-item">
+                  <div class="legend-dot risk-high"></div>
+                  <span><strong>High Risk (60+)</strong> - Large changes with significant new code. Needs thorough review and testing.</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-dot risk-medium"></div>
+                  <span><strong>Medium Risk (30-60)</strong> - Moderate changes. Standard review process recommended.</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-dot risk-low"></div>
+                  <span><strong>Low Risk (0-30)</strong> - Small changes or config/test files. Quick review is sufficient.</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="tab-empty">
+              <p>No complexity data available.</p>
+              <p class="tab-empty-hint">Complexity analysis requires PR details to be loaded first.</p>
             </div>
           </div>
           <div v-if="activeTab === 'highlights'">
@@ -1634,5 +2102,411 @@ const formatDate = (dateString) => {
 .empty-state-hint strong {
   color: var(--text);
   font-weight: 600;
+}
+
+/* Complexity Visualization Styles */
+.pr-complexity {
+  padding: 0.5rem 0;
+}
+
+.complexity-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.complexity-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.complexity-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem;
+  background: var(--bg-hover);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.complexity-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px var(--shadow);
+  border-color: var(--primary-light);
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-content {
+  text-align: center;
+}
+
+.stat-value-lg {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label-lg {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.complexity-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.complexity-bar-item {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--bg-hover);
+  transition: all 0.3s ease;
+}
+
+.complexity-bar-item:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.complexity-bar-item.expanded {
+  background: var(--bg-elevated);
+  border-color: var(--primary);
+}
+
+.complexity-bar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.complexity-bar-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.complexity-file-path {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complexity-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.expand-icon {
+  color: var(--text-muted);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.complexity-bar-item.expanded .expand-icon {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+
+.complexity-changes {
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.complexity-score {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.25rem 0.625rem;
+  border-radius: 8px;
+  min-width: 35px;
+  text-align: center;
+}
+
+.complexity-score.risk-high {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.complexity-score.risk-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.complexity-score.risk-low {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.complexity-bar-track {
+  height: 24px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.complexity-bar-fill {
+  height: 100%;
+  border-radius: 7px;
+  transition: width 0.6s ease, background 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.complexity-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.complexity-bar-fill.risk-high {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.complexity-bar-fill.risk-medium {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.complexity-bar-fill.risk-low {
+  background: linear-gradient(90deg, #10b981, #059669);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.complexity-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.legend-dot.risk-high {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.legend-dot.risk-medium {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+.legend-dot.risk-low {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.legend-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+/* Complexity Breakdown Styles */
+.complexity-breakdown {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--border);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.breakdown-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.breakdown-factors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+.factor-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border-left: 4px solid var(--border);
+  transition: all 0.2s;
+}
+
+.factor-item:hover {
+  transform: translateX(3px);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.factor-item.factor-high {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.factor-item.factor-medium {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.factor-item.factor-low {
+  border-left-color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.factor-item.factor-positive {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.factor-item.factor-neutral {
+  border-left-color: var(--text-muted);
+  background: var(--bg-hover);
+}
+
+.factor-label {
+  font-size: 0.875rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.factor-score {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.factor-item.factor-high .factor-score {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.factor-item.factor-medium .factor-score {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.factor-item.factor-low .factor-score {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.factor-item.factor-positive .factor-score {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.breakdown-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.05));
+  border-radius: 8px;
+  border: 2px solid var(--primary);
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.breakdown-total span {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.total-score {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  color: var(--primary) !important;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 </style>
