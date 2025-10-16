@@ -135,6 +135,18 @@ const formatDate = (dateString) => {
   })
 }
 
+const prSearchQuery = ref('')
+
+const filteredPRs = computed(() => {
+  if (!prSearchQuery.value) return prs.value
+  const query = prSearchQuery.value.toLowerCase()
+  return prs.value.filter(pr =>
+    pr.title.toLowerCase().includes(query) ||
+    pr.number.toString().includes(query) ||
+    pr.author.login.toLowerCase().includes(query)
+  )
+})
+
 const filteredRepos = computed(() => {
   // If favorites are set, only show favorite repos
   let reposToShow = favoriteRepos.value.length > 0 ? favoriteRepos.value : userRepos.value
@@ -343,11 +355,24 @@ const clearAllFavorites = () => {
       <aside v-if="prs.length > 0" class="sidebar">
         <div class="sidebar-header">
           <span class="sidebar-title">Pull Requests</span>
-          <span class="count-badge">{{ prs.length }}</span>
+          <span class="count-badge">{{ filteredPRs.length }}</span>
+        </div>
+        <div class="sidebar-search">
+          <input
+            v-model="prSearchQuery"
+            type="text"
+            class="pr-search-input"
+            placeholder="Search PRs..."
+          />
+          <svg v-if="!prSearchQuery" class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          <button v-else class="clear-search" @click="prSearchQuery = ''">×</button>
         </div>
         <ul class="pr-list">
           <li
-            v-for="pr in prs"
+            v-for="pr in filteredPRs"
             :key="pr.number"
             class="pr-item"
             :class="{ active: selectedPR?.number === pr.number }"
@@ -360,6 +385,9 @@ const clearAllFavorites = () => {
             </div>
           </li>
         </ul>
+        <div v-if="filteredPRs.length === 0" class="pr-list-empty">
+          <p>No PRs match your search</p>
+        </div>
       </aside>
 
       <div class="content-panel">
