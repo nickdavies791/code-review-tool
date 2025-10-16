@@ -86,9 +86,7 @@ function generateGeminiReview($pr_data, $api_key, $custom_guidelines = null) {
     // Check if we have all required sections
     $hasAllSections =
         strpos($reviewText, '## SECTION: ACTIONABLE_ITEMS') !== false &&
-        strpos($reviewText, '## SECTION: CODE_QUALITY') !== false &&
-        strpos($reviewText, '## SECTION: POSITIVE_HIGHLIGHTS') !== false &&
-        strpos($reviewText, '## SECTION: SUMMARY') !== false;
+        strpos($reviewText, '## SECTION: TEST_SCENARIOS') !== false;
 
     if (!$hasAllSections && !$wasTruncated) {
         error_log("Warning: Review is missing some sections");
@@ -237,83 +235,86 @@ Issues that don't block merge but reduce code quality:
 
 ---
 
-## SECTION: CODE_QUALITY
+## SECTION: TEST_SCENARIOS
 
-Evaluate the quality of the implementation:
+Generate comprehensive test scenarios for this PR using Given-When-Then format. Cover:
 
-### Architecture & Design
-- Does the solution follow good design principles (SOLID, separation of concerns)?
-- Is the abstraction level appropriate?
-- Does it integrate well with existing patterns in the codebase?
-- Are there simpler approaches that would work as well?
-- Any over-engineering or premature optimization?
+### Happy Path Scenarios
+Test the primary functionality with expected inputs and conditions:
 
-### Code Clarity
-- Is the code self-documenting with clear names?
-- Is the logic flow easy to trace?
-- Are functions and classes focused on a single responsibility?
-- Is the code organized logically?
-- Are comments used appropriately (why, not what)?
+**Format for each scenario:**
+**Scenario X: [Brief description of what's being tested]**
+- **Given:** [Initial state/preconditions]
+- **When:** [Action being performed]
+- **Then:** [Expected outcome]
 
-### Coding Standards
-- Consistent with project style and conventions?
-- Following language-specific best practices?
-- Avoiding anti-patterns?
-- DRY principle followed (no unnecessary duplication)?
-- Proper use of type systems (TypeScript types, PHP types, etc.)?
+**Example:**
+**Scenario 1: User successfully logs in with valid credentials**
+- **Given:** A registered user with username "john@example.com" and password "SecurePass123"
+- **When:** User submits the login form with correct credentials
+- **Then:** User should be redirected to the dashboard and see a welcome message
 
-### Performance & Efficiency
-- Any N+1 query problems or unnecessary database calls?
-- Inefficient algorithms (could use better data structures)?
-- Unnecessary re-rendering or re-computation?
-- Memory usage appropriate for the task?
-- Opportunities for caching or memoization?
+### Edge Cases & Error Scenarios
+Test boundary conditions and failure modes:
 
-### Testing
-- Are there tests for the new functionality?
-- Do tests cover edge cases and error paths?
-- Are tests maintainable and clear?
-- Is test coverage adequate for critical paths?
+**Format:**
+**Scenario X: [Edge case or error condition]**
+- **Given:** [Setup for edge case]
+- **When:** [Triggering action]
+- **Then:** [Expected handling/error message]
 
-**Be specific with file paths and line numbers. Focus on issues that meaningfully impact code quality, security, or maintainability.**
+Cover:
+- Empty/null inputs
+- Maximum/minimum values
+- Invalid data types
+- Missing required fields
+- Duplicate entries
+- Concurrent operations
+- Network failures
+- Permission denied scenarios
+- Resource not found
 
----
+### Security Test Scenarios
+If the PR touches authentication, authorization, data handling, or API endpoints:
 
-## SECTION: POSITIVE_HIGHLIGHTS
+**Format:**
+**Scenario X: [Security test description]**
+- **Given:** [Security context]
+- **When:** [Attack or security check]
+- **Then:** [Expected security behavior]
 
-### What's Done Well
+Cover:
+- Unauthorized access attempts
+- Input injection attempts (SQL, XSS, etc.)
+- CSRF protection
+- Data validation and sanitization
+- Authentication bypass attempts
+- Privilege escalation attempts
 
-Highlight 2-5 things that demonstrate good engineering:
-- Well-structured, clean solutions
-- Proper error handling and validation
-- Good security practices (input sanitization, authentication)
-- Performance optimizations
-- Clear, maintainable code
-- Comprehensive test coverage
-- Good documentation or helpful comments
-- Smart use of design patterns
-- Defensive programming techniques
+### Integration Test Scenarios
+Test how new code interacts with existing systems:
 
-Be specific about what's good and why it matters.
+**Format:**
+**Scenario X: [Integration test description]**
+- **Given:** [State of integrated systems]
+- **When:** [Action triggering integration]
+- **Then:** [Expected interaction result]
 
----
+### Performance Test Scenarios (if applicable)
+For features that may impact performance:
 
-## SECTION: SUMMARY
+**Format:**
+**Scenario X: [Performance test description]**
+- **Given:** [Load conditions - e.g., "1000 concurrent users"]
+- **When:** [Performance-critical operation]
+- **Then:** [Expected performance metrics - e.g., "Response time < 200ms"]
 
-### Overview
-In 2-4 sentences:
-- What this pull request accomplishes
-- Overall assessment of code quality and implementation
-- Most significant concern or notable achievement
-
-### Recommendation
-**Choose one:**
-- **APPROVE** - Code is production-ready, no blocking issues
-- **REQUEST CHANGES** - Critical issues must be fixed before merge
-- **COMMENT** - Suggestions provided but not blocking merge
-
-### Merge Readiness: X/10
-Justify the score based on code quality, security, test coverage, and impact.
+**Guidelines:**
+- Generate 8-15 test scenarios total
+- Prioritize based on PR changes (more scenarios for complex/risky code)
+- Be specific with actual values and conditions
+- Reference specific files/functions being tested
+- Include both automated test suggestions and manual testing steps where appropriate
 
 ---
 

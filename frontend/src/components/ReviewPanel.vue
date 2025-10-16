@@ -37,21 +37,15 @@ const parseSections = computed(() => {
   const content = review.value.content
   const sections = {
     actionable: '',
-    quality: '',
-    highlights: '',
-    summary: ''
+    testScenarios: ''
   }
 
   // Split content by section markers
   const actionableMatch = content.match(/## SECTION: ACTIONABLE_ITEMS([\s\S]*?)(?=## SECTION:|$)/i)
-  const qualityMatch = content.match(/## SECTION: CODE_QUALITY([\s\S]*?)(?=## SECTION:|$)/i)
-  const highlightsMatch = content.match(/## SECTION: POSITIVE_HIGHLIGHTS([\s\S]*?)(?=## SECTION:|$)/i)
-  const summaryMatch = content.match(/## SECTION: SUMMARY([\s\S]*?)$/i)
+  const testScenariosMatch = content.match(/## SECTION: TEST_SCENARIOS([\s\S]*?)(?=## SECTION:|$)/i)
 
   if (actionableMatch) sections.actionable = actionableMatch[1].trim()
-  if (qualityMatch) sections.quality = qualityMatch[1].trim()
-  if (highlightsMatch) sections.highlights = highlightsMatch[1].trim()
-  if (summaryMatch) sections.summary = summaryMatch[1].trim()
+  if (testScenariosMatch) sections.testScenarios = testScenariosMatch[1].trim()
 
   return sections
 })
@@ -61,19 +55,9 @@ const actionableHtml = computed(() => {
   return marked.parse(parseSections.value.actionable)
 })
 
-const qualityHtml = computed(() => {
-  if (!parseSections.value?.quality) return ''
-  return marked.parse(parseSections.value.quality)
-})
-
-const highlightsHtml = computed(() => {
-  if (!parseSections.value?.highlights) return ''
-  return marked.parse(parseSections.value.highlights)
-})
-
-const summaryHtml = computed(() => {
-  if (!parseSections.value?.summary) return ''
-  return marked.parse(parseSections.value.summary)
+const testScenariosHtml = computed(() => {
+  if (!parseSections.value?.testScenarios) return ''
+  return marked.parse(parseSections.value.testScenarios)
 })
 
 // Configure marked for better code review rendering
@@ -794,31 +778,17 @@ const toggleFileExpanded = (filePath) => {
           </button>
           <button
             class="tab"
-            :class="{ active: activeTab === 'quality' }"
-            @click="activeTab = 'quality'"
+            :class="{ active: activeTab === 'testScenarios' }"
+            @click="activeTab = 'testScenarios'"
           >
-            Code Quality
+            Test Scenarios
           </button>
           <button
             class="tab"
             :class="{ active: activeTab === 'complexity' }"
             @click="activeTab = 'complexity'"
           >
-            Complexity
-          </button>
-          <button
-            class="tab"
-            :class="{ active: activeTab === 'highlights' }"
-            @click="activeTab = 'highlights'"
-          >
-            Highlights
-          </button>
-          <button
-            class="tab"
-            :class="{ active: activeTab === 'summary' }"
-            @click="activeTab = 'summary'"
-          >
-            Summary
+            Complexity Score
           </button>
         </div>
 
@@ -831,10 +801,11 @@ const toggleFileExpanded = (filePath) => {
               <p class="tab-empty-hint">The AI may have included this content in another section, or there may be no critical issues.</p>
             </div>
           </div>
-          <div v-if="activeTab === 'quality'">
-            <div v-if="qualityHtml" class="review-content" v-html="qualityHtml"></div>
+          <div v-if="activeTab === 'testScenarios'">
+            <div v-if="testScenariosHtml" class="review-content" v-html="testScenariosHtml"></div>
             <div v-else class="tab-empty">
-              <p>No code quality analysis found in this section.</p>
+              <p>No test scenarios found in this section.</p>
+              <p class="tab-empty-hint">The AI may not have generated test scenarios for this PR.</p>
             </div>
           </div>
           <div v-if="activeTab === 'complexity'">
@@ -969,18 +940,6 @@ const toggleFileExpanded = (filePath) => {
               <p class="tab-empty-hint">Complexity analysis requires PR details to be loaded first.</p>
             </div>
           </div>
-          <div v-if="activeTab === 'highlights'">
-            <div v-if="highlightsHtml" class="review-content" v-html="highlightsHtml"></div>
-            <div v-else class="tab-empty">
-              <p>No positive highlights found in this section.</p>
-            </div>
-          </div>
-          <div v-if="activeTab === 'summary'">
-            <div v-if="summaryHtml" class="review-content" v-html="summaryHtml"></div>
-            <div v-else class="tab-empty">
-              <p>No summary found in this section.</p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1047,24 +1006,17 @@ const toggleFileExpanded = (filePath) => {
               </button>
               <button
                 class="tab"
-                :class="{ active: modalActiveTab === 'quality' }"
-                @click="modalActiveTab = 'quality'"
+                :class="{ active: modalActiveTab === 'testScenarios' }"
+                @click="modalActiveTab = 'testScenarios'"
               >
-                Code Quality
+                Test Scenarios
               </button>
               <button
                 class="tab"
-                :class="{ active: modalActiveTab === 'highlights' }"
-                @click="modalActiveTab = 'highlights'"
+                :class="{ active: modalActiveTab === 'complexity' }"
+                @click="modalActiveTab = 'complexity'"
               >
-                Highlights
-              </button>
-              <button
-                class="tab"
-                :class="{ active: modalActiveTab === 'summary' }"
-                @click="modalActiveTab = 'summary'"
-              >
-                Summary
+                Complexity Score
               </button>
             </div>
 
@@ -1077,22 +1029,143 @@ const toggleFileExpanded = (filePath) => {
                   <p class="tab-empty-hint">The AI may have included this content in another section, or there may be no critical issues.</p>
                 </div>
               </div>
-              <div v-if="modalActiveTab === 'quality'">
-                <div v-if="qualityHtml" class="review-content" v-html="qualityHtml"></div>
+              <div v-if="modalActiveTab === 'testScenarios'">
+                <div v-if="testScenariosHtml" class="review-content" v-html="testScenariosHtml"></div>
                 <div v-else class="tab-empty">
-                  <p>No code quality analysis found in this section.</p>
+                  <p>No test scenarios found in this section.</p>
+                  <p class="tab-empty-hint">The AI may not have generated test scenarios for this PR.</p>
                 </div>
               </div>
-              <div v-if="modalActiveTab === 'highlights'">
-                <div v-if="highlightsHtml" class="review-content" v-html="highlightsHtml"></div>
-                <div v-else class="tab-empty">
-                  <p>No positive highlights found in this section.</p>
+              <div v-if="modalActiveTab === 'complexity'">
+                <div v-if="complexityData" class="complexity-content">
+                  <!-- Overall Stats -->
+                  <div class="complexity-stats">
+                    <div class="complexity-stat-card">
+                      <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                          <path d="M9 11l3 3L22 4"></path>
+                          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                      </div>
+                      <div class="stat-content">
+                        <div class="stat-value-lg">{{ complexityData.stats.avgComplexity }}</div>
+                        <div class="stat-label-lg">Avg Complexity</div>
+                      </div>
+                    </div>
+                    <div class="complexity-stat-card">
+                      <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #f87171);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="12"></line>
+                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                      </div>
+                      <div class="stat-content">
+                        <div class="stat-value-lg">{{ complexityData.stats.highRiskCount }}</div>
+                        <div class="stat-label-lg">High Risk Files</div>
+                      </div>
+                    </div>
+                    <div class="complexity-stat-card">
+                      <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                          <line x1="12" y1="9" x2="12" y2="13"></line>
+                          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                      </div>
+                      <div class="stat-content">
+                        <div class="stat-value-lg">{{ complexityData.stats.mediumRiskCount }}</div>
+                        <div class="stat-label-lg">Medium Risk Files</div>
+                      </div>
+                    </div>
+                    <div class="complexity-stat-card">
+                      <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </div>
+                      <div class="stat-content">
+                        <div class="stat-value-lg">{{ complexityData.stats.lowRiskCount }}</div>
+                        <div class="stat-label-lg">Low Risk Files</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- File Complexity Chart -->
+                  <h4 class="section-title" style="margin-top: 2rem;">File-by-File Breakdown</h4>
+                  <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                    Each file is analyzed for cyclomatic complexity (decision paths), cognitive complexity (nesting depth),
+                    security patterns, and code quality issues. Click any file to see the detailed breakdown.
+                  </p>
+                  <div class="complexity-chart">
+                    <div
+                      v-for="file in complexityData.files"
+                      :key="file.path"
+                      class="complexity-bar-item"
+                      :class="{ expanded: file.expanded }"
+                    >
+                      <div class="complexity-bar-header" @click="toggleFileExpanded(file.path)">
+                        <div class="complexity-bar-info">
+                          <span class="complexity-file-path">{{ file.path }}</span>
+                          <div class="complexity-bar-meta">
+                            <span class="complexity-changes">+{{ file.additions }} -{{ file.deletions }}</span>
+                            <span class="complexity-score" :class="'risk-' + file.risk">{{ Math.round(file.complexity) }}</span>
+                            <svg class="expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                          </div>
+                        </div>
+                        <div class="complexity-bar-track">
+                          <div
+                            class="complexity-bar-fill"
+                            :class="'risk-' + file.risk"
+                            :style="{ width: file.complexity + '%' }"
+                          ></div>
+                        </div>
+                      </div>
+
+                      <!-- Expandable Breakdown -->
+                      <div v-if="file.expanded" class="complexity-breakdown">
+                        <h5 class="breakdown-title">Why this score?</h5>
+                        <div class="breakdown-factors">
+                          <div
+                            v-for="(factor, idx) in file.factors"
+                            :key="idx"
+                            class="factor-item"
+                            :class="'factor-' + factor.type"
+                          >
+                            <div class="factor-label">{{ factor.label }}</div>
+                            <div class="factor-score">{{ factor.score > 0 ? '+' : '' }}{{ factor.score }}</div>
+                          </div>
+                        </div>
+                        <div class="breakdown-total">
+                          <span>Total Complexity Score</span>
+                          <span class="total-score">{{ Math.round(file.complexity) }} / 100</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Risk Legend -->
+                  <div class="complexity-legend">
+                    <div class="legend-title">Understanding Risk Levels</div>
+                    <div class="legend-item">
+                      <div class="legend-dot risk-high"></div>
+                      <span><strong>High Risk (60+)</strong> - Large changes with significant new code. Needs thorough review and testing.</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-dot risk-medium"></div>
+                      <span><strong>Medium Risk (30-60)</strong> - Moderate changes. Standard review process recommended.</span>
+                    </div>
+                    <div class="legend-item">
+                      <div class="legend-dot risk-low"></div>
+                      <span><strong>Low Risk (0-30)</strong> - Small changes or config/test files. Quick review is sufficient.</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div v-if="modalActiveTab === 'summary'">
-                <div v-if="summaryHtml" class="review-content" v-html="summaryHtml"></div>
                 <div v-else class="tab-empty">
-                  <p>No summary found in this section.</p>
+                  <p>No complexity data available.</p>
+                  <p class="tab-empty-hint">Complexity analysis requires PR details to be loaded first.</p>
                 </div>
               </div>
             </div>
