@@ -10,8 +10,7 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GH_TOKEN=${GH_TOKEN}
-      - GITHUB_TOKEN=${GH_TOKEN}
+      - GITHUB_API_TOKEN=${GITHUB_API_TOKEN}
     volumes:
       - ./backend:/var/www/html
       - /var/www/html/vendor
