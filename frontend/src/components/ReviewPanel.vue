@@ -754,24 +754,7 @@ const toggleFileExpanded = (filePath) => {
 
       <div v-if="loading" class="loading-container">
         <div class="loading-content">
-          <div class="loading-icon">
-            <svg class="loading-svg" viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
-                </linearGradient>
-              </defs>
-              <circle class="loading-circle-bg" cx="50" cy="50" r="45"></circle>
-              <circle class="loading-circle" cx="50" cy="50" r="45"></circle>
-            </svg>
-            <div class="loading-icon-inner">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 11l3 3L22 4"></path>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-              </svg>
-            </div>
-          </div>
+          <div class="simple-spinner"></div>
           <h3 class="loading-title">{{ loadingStage }}</h3>
           <p class="loading-subtitle">This may take 30-120 seconds depending on PR size</p>
           <div class="loading-stages">
@@ -1469,61 +1452,19 @@ const toggleFileExpanded = (filePath) => {
   max-width: 500px;
 }
 
-.loading-icon {
-  position: relative;
-  width: 120px;
-  height: 120px;
+.simple-spinner {
+  width: 60px;
+  height: 60px;
   margin: 0 auto 2rem;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.loading-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-
-.loading-circle-bg {
-  fill: none;
-  stroke: var(--border);
-  stroke-width: 4;
-}
-
-.loading-circle {
-  fill: none;
-  stroke: url(#gradient);
-  stroke-width: 4;
-  stroke-dasharray: 283;
-  stroke-dashoffset: 283;
-  animation: loadingProgress 2.5s linear infinite;
-  stroke-linecap: round;
-}
-
-@keyframes loadingProgress {
-  0% {
-    stroke-dashoffset: 283;
-  }
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-.loading-icon-inner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: var(--primary);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: translate(-50%, -50%) scale(0.95);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
