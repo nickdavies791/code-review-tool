@@ -59,7 +59,14 @@ switch ($path) {
             handleAIReview();
         }
         break;
-    
+
+    case '/api/chat':
+        if ($request_method === 'POST') {
+            require_once __DIR__ . '/api/chat.php';
+            handleChat();
+        }
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['error' => 'Endpoint not found']);
