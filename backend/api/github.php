@@ -114,8 +114,8 @@ function handleGetPRs() {
         return;
     }
 
-    // Fetch PRs for the repo (open and closed, sorted by updated)
-    $prs = githubApiRequest("repos/$repo/pulls?state=all&per_page=30&sort=updated&direction=desc");
+    // Fetch PRs for the repo (open only, sorted by updated)
+    $prs = githubApiRequest("repos/$repo/pulls?state=open&per_page=30&sort=updated&direction=desc");
 
     if (isset($prs['error'])) {
         http_response_code(500);
