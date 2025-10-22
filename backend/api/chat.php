@@ -113,35 +113,14 @@ function buildChatContext($pr_data, $review_content) {
         }
     }
 
-    return <<<CONTEXT
-You are an AI assistant helping a developer understand a code review that was previously generated for their pull request.
+    // Load prompt template from file
+    $prompt_template = file_get_contents(__DIR__ . '/../prompts/chat-prompt.txt');
 
-# Pull Request Information
+    // Replace placeholders
+    $context = str_replace('{{PR_TITLE}}', $title, $prompt_template);
+    $context = str_replace('{{PR_DESCRIPTION}}', $body, $context);
+    $context = str_replace('{{FILES_LIST}}', $files_list, $context);
+    $context = str_replace('{{REVIEW_CONTENT}}', $review_content, $context);
 
-**Title:** {$title}
-**Description:** {$body}
-
-{$files_list}
-
-# Code Review Content
-
-{$review_content}
-
----
-
-Your role is to:
-1. Answer questions about the code review
-2. Explain specific issues or recommendations in more detail
-3. Provide clarification on complexity scores, test scenarios, or action items
-4. Help the developer understand the reasoning behind the review comments
-5. Suggest how to implement the recommended changes
-
-Keep your responses:
-- Concise and focused on the question asked
-- Specific with file paths and line numbers when relevant
-- Helpful and constructive
-- Code-focused with examples when appropriate
-
-If asked about something not covered in the review or PR, politely explain that you can only discuss the content of this specific review and PR.
-CONTEXT;
+    return $context;
 }

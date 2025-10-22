@@ -665,22 +665,6 @@ body::after {
   font-weight: 400;
 }
 
-.getting-started {
-  margin-top: 3rem;
-  padding: 1.5rem 2rem;
-  background: rgba(99, 102, 241, 0.05);
-  border: 1px solid rgba(99, 102, 241, 0.1);
-  border-radius: 12px;
-  max-width: 500px;
-}
-
-.getting-started-text {
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-  font-weight: 500;
-  margin: 0;
-}
-
 .spinner {
   width: 56px;
   height: 56px;

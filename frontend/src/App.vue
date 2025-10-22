@@ -402,7 +402,7 @@ const clearAllFavorites = () => {
               <h2 class="empty-title">Welcome to Quode</h2>
               <span class="ai-badge-large">AI</span>
             </div>
-            <p class="empty-text">Intelligent code review with real-time complexity analysis and AI-powered insights</p>
+            <p class="empty-text">Intelligent code review with AI-powered insights and actionable recommendations</p>
           </div>
           <div class="features">
             <div class="feature-card">
@@ -416,8 +416,8 @@ const clearAllFavorites = () => {
                   <line x1="12" y1="22.08" x2="12" y2="12"></line>
                 </svg>
               </div>
-              <h3 class="feature-title">Complexity Scoring</h3>
-              <p class="feature-text">Real cyclomatic and cognitive complexity analysis of your code changes, showing exactly what makes each file complex</p>
+              <h3 class="feature-title">Detailed Analysis</h3>
+              <p class="feature-text">Comprehensive code review covering security issues, performance problems, and code quality improvements</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">
@@ -439,9 +439,6 @@ const clearAllFavorites = () => {
               <h3 class="feature-title">AI-Powered Review</h3>
               <p class="feature-text">Comprehensive code quality analysis with actionable feedback on architecture, best practices, and improvements</p>
             </div>
-          </div>
-          <div class="getting-started">
-            <p class="getting-started-text">Get started by selecting a repository from the dropdown above</p>
           </div>
         </div>
 
