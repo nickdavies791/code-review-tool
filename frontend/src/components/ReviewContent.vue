@@ -6,7 +6,10 @@ const props = defineProps({
   review: Object
 })
 
-const activeTab = ref('actionable')
+const expandedSections = ref({
+  actionable: true,
+  testScenarios: true
+})
 
 const parseSections = computed(() => {
   if (!props.review?.content) return null
@@ -37,6 +40,10 @@ const testScenariosHtml = computed(() => {
   return marked.parse(parseSections.value.testScenarios)
 })
 
+const toggleSection = (section) => {
+  expandedSections.value[section] = !expandedSections.value[section]
+}
+
 marked.setOptions({
   breaks: true,
   gfm: true
@@ -45,40 +52,77 @@ marked.setOptions({
 
 <template>
   <div class="review-content-wrapper">
-    <!-- Tabs -->
-    <div class="tabs">
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'actionable' }"
-        @click="activeTab = 'actionable'"
-      >
-        Action Items
-      </button>
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'testScenarios' }"
-        @click="activeTab = 'testScenarios'"
-      >
-        Test Scenarios
-      </button>
+    <!-- Review Metadata -->
+    <div class="review-info">
+      <div class="review-badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l3 3L22 4"></path>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+        </svg>
+        AI Review Complete
+      </div>
+      <div class="review-timestamp">{{ new Date(review.timestamp).toLocaleString() }}</div>
     </div>
 
-    <!-- Tab Content -->
-    <div class="tab-content">
-      <div v-if="activeTab === 'actionable'">
-        <div v-if="actionableHtml" class="review-content" v-html="actionableHtml"></div>
-        <div v-else class="tab-empty">
-          <p>No actionable items found in this section.</p>
-          <p class="tab-empty-hint">The AI may have included this content in another section, or there may be no critical issues.</p>
+    <!-- Actionable Items Section -->
+    <div class="review-section" v-if="actionableHtml">
+      <div class="section-header" @click="toggleSection('actionable')">
+        <div class="section-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <h3>Action Items</h3>
         </div>
+        <svg
+          class="chevron"
+          :class="{ expanded: expandedSections.actionable }"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </div>
-      <div v-if="activeTab === 'testScenarios'">
-        <div v-if="testScenariosHtml" class="review-content" v-html="testScenariosHtml"></div>
-        <div v-else class="tab-empty">
-          <p>No test scenarios found in this section.</p>
-          <p class="tab-empty-hint">The AI may not have generated test scenarios for this PR.</p>
+      <Transition name="expand">
+        <div v-if="expandedSections.actionable" class="section-content">
+          <div class="review-content" v-html="actionableHtml"></div>
         </div>
+      </Transition>
+    </div>
+
+    <!-- Test Scenarios Section -->
+    <div class="review-section" v-if="testScenariosHtml">
+      <div class="section-header" @click="toggleSection('testScenarios')">
+        <div class="section-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          <h3>Test Scenarios</h3>
+        </div>
+        <svg
+          class="chevron"
+          :class="{ expanded: expandedSections.testScenarios }"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </div>
+      <Transition name="expand">
+        <div v-if="expandedSections.testScenarios" class="section-content">
+          <div class="review-content" v-html="testScenariosHtml"></div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -87,58 +131,114 @@ marked.setOptions({
 .review-content-wrapper {
   display: flex;
   flex-direction: column;
+  gap: 1.5rem;
 }
 
-.tabs {
+.review-info {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid var(--border);
-}
-
-.tab {
+  align-items: center;
+  justify-content: space-between;
   padding: 1rem 1.5rem;
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: var(--text-muted);
-  font-size: 0.95rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(16, 185, 129, 0.05));
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.review-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-  bottom: -2px;
-}
-
-.tab:hover {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-
-.tab.active {
   color: var(--primary);
-  border-bottom-color: var(--primary);
 }
 
-.tab-content {
-  min-height: 400px;
+.review-badge svg {
+  color: var(--secondary);
 }
 
-.tab-empty {
-  padding: 4rem 2rem;
-  text-align: center;
+.review-timestamp {
+  font-size: 0.8rem;
   color: var(--text-muted);
+  font-weight: 500;
 }
 
-.tab-empty p {
-  margin: 0.5rem 0;
-  font-size: 1rem;
+.review-section {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s;
 }
 
-.tab-empty-hint {
-  font-size: 0.875rem !important;
+.review-section:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-hover);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header:hover {
+  background: var(--bg-elevated);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.section-title svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.section-title h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chevron {
   color: var(--text-muted);
-  opacity: 0.8;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.section-content {
+  padding: 2rem;
+}
+
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.expand-enter-to,
+.expand-leave-from {
+  opacity: 1;
+  max-height: 10000px;
 }
 
 .review-content {

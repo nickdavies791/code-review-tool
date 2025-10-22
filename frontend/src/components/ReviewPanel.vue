@@ -19,9 +19,9 @@ const error = ref(null)
 const review = ref(null)
 const prDetails = ref(null)
 const showModal = ref(false)
-const modalActiveTab = ref('actionable')
 const showPRDetails = ref(false)
 const loadingPRDetails = ref(false)
+const showChat = ref(false)
 
 const openModal = () => {
   showModal.value = true
@@ -171,6 +171,7 @@ watch(() => props.pr, async () => {
   error.value = null
   showPRDetails.value = false
   loadingPRDetails.value = false
+  showChat.value = false
 
   // Check if we have an existing review for this PR
   if (props.pr) {
@@ -243,17 +244,6 @@ watch(() => props.pr, async () => {
       </div>
 
       <div v-else-if="review">
-        <div class="review-meta">
-          <div>
-            <span>Reviewed by {{ review.model }}</span>
-            <span>•</span>
-            <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
-          </div>
-          <button class="btn-secondary" @click="openModal">
-            View Full Review
-          </button>
-        </div>
-
         <!-- Truncation Warning -->
         <div v-if="review.truncated" class="truncation-warning">
           <strong>⚠️ Warning:</strong> This review was cut off due to length limits.
@@ -267,37 +257,37 @@ watch(() => props.pr, async () => {
           This could mean the AI didn't find issues in those areas, or the response was incomplete.
         </div>
 
-        <!-- Review Content with Chat -->
-        <div class="review-tabs-container">
-          <div class="tabs">
-            <button
-              class="tab"
-              :class="{ active: 'content' }"
-              @click="() => {}"
-            >
-              Review
-            </button>
-            <button
-              class="tab"
-              :class="{ active: false }"
-              @click="() => {}"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              Chat
-            </button>
-          </div>
-        </div>
-
-        <!-- Review Content Component -->
+        <!-- Review Content -->
         <ReviewContent :review="review" />
 
-        <!-- Chat Interface at bottom -->
-        <div style="margin-top: 2rem;">
-          <h3 style="margin-bottom: 1rem; color: var(--text);">Ask Questions</h3>
-          <ChatInterface :review="review" :prDetails="prDetails" />
-        </div>
+        <!-- Floating Chat Button -->
+        <button class="floating-chat-btn" @click="showChat = !showChat" :class="{ active: showChat }">
+          <svg v-if="!showChat" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <!-- Chat Drawer -->
+        <Transition name="slide">
+          <div v-if="showChat" class="chat-drawer">
+            <div class="chat-drawer-header">
+              <h3>Ask Questions</h3>
+              <button class="close-drawer" @click="showChat = false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div class="chat-drawer-body">
+              <ChatInterface :review="review" :prDetails="prDetails" />
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <div v-else class="empty-state">
@@ -330,25 +320,7 @@ watch(() => props.pr, async () => {
               <span>{{ new Date(review.timestamp).toLocaleString() }}</span>
             </div>
 
-            <!-- Modal Tabs -->
-            <div class="tabs">
-              <button
-                class="tab"
-                :class="{ active: modalActiveTab === 'actionable' }"
-                @click="modalActiveTab = 'actionable'"
-              >
-                Action Items
-              </button>
-              <button
-                class="tab"
-                :class="{ active: modalActiveTab === 'testScenarios' }"
-                @click="modalActiveTab = 'testScenarios'"
-              >
-                Test Scenarios
-              </button>
-            </div>
-
-            <!-- Modal Tab Content -->
+            <!-- Modal Content -->
             <ReviewContent :review="review" />
           </div>
           <div class="modal-footer">
@@ -415,41 +387,6 @@ watch(() => props.pr, async () => {
 
 .review-body::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
-}
-
-.review-meta {
-  padding: 1.25rem 1.5rem;
-  background: var(--bg-tertiary);
-  border-radius: 12px;
-  border: 2px solid var(--border);
-  margin-bottom: 2.5rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  font-weight: 500;
-}
-
-.review-meta > div {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.review-meta-modal {
-  padding: 1.25rem 1.5rem;
-  background: var(--bg-tertiary);
-  border-radius: 12px;
-  border: 2px solid var(--border);
-  margin-bottom: 2.5rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 500;
 }
 
 .btn-secondary {
@@ -655,37 +592,110 @@ watch(() => props.pr, async () => {
   font-weight: 700;
 }
 
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid var(--border);
-}
-
-.tab {
-  padding: 1rem 1.5rem;
-  background: transparent;
+/* Floating Chat Button */
+.floating-chat-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
   border: none;
-  border-bottom: 3px solid transparent;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-  bottom: -2px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 100;
 }
 
-.tab:hover {
-  color: var(--text);
+.floating-chat-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+}
+
+.floating-chat-btn.active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+}
+
+.floating-chat-btn svg {
+  flex-shrink: 0;
+}
+
+/* Chat Drawer */
+.chat-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 500px;
+  max-width: 90vw;
+  height: 100vh;
+  background: var(--bg-card);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-drawer-header {
+  padding: 1.5rem 2rem;
   background: var(--bg-hover);
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.tab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+.chat-drawer-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.close-drawer {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.close-drawer:hover {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
+.chat-drawer-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+
+/* Slide Transition */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.3s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  transform: translateX(100%);
+}
+
+.slide-enter-to,
+.slide-leave-from {
+  transform: translateX(0);
 }
 
 .error {

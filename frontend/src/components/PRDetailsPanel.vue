@@ -140,38 +140,40 @@ marked.setOptions({
 
 <style scoped>
 .pr-details-section {
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
   background: var(--bg-card);
   border: 2px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .pr-details-tabs {
   display: flex;
-  gap: 0;
+  gap: 0.25rem;
   background: var(--bg-hover);
   border-bottom: 2px solid var(--border);
-  padding: 0 1.5rem;
+  padding: 0 1rem;
 }
 
 .pr-tab {
-  padding: 0.625rem 1rem;
+  padding: 0.75rem 1.25rem;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
   bottom: -2px;
+  border-radius: 6px 6px 0 0;
 }
 
 .pr-tab:hover {
   color: var(--text);
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 .pr-tab.active {

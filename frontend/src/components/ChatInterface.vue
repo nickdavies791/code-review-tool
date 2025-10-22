@@ -166,11 +166,12 @@ marked.setOptions({
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 600px;
+  height: 100%;
   background: var(--bg-card);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 2px solid var(--border);
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .chat-header {
