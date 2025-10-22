@@ -42,6 +42,24 @@ function githubApiRequest($endpoint, $method = 'GET') {
 }
 
 function handleGetRepos() {
+    require_once __DIR__ . '/../database.php';
+
+    // Check if refresh is requested
+    $refresh = isset($_GET['refresh']) && $_GET['refresh'] === 'true';
+
+    // Try to get cached repos if not refreshing
+    if (!$refresh) {
+        $cachedRepos = getCachedRepos(24); // Cache for 24 hours
+        if ($cachedRepos !== null) {
+            echo json_encode([
+                'repos' => $cachedRepos,
+                'cached' => true
+            ]);
+            return;
+        }
+    }
+
+    // Fetch from GitHub API
     $allRepos = [];
 
     // Get user's personal repos
@@ -95,7 +113,13 @@ function handleGetRepos() {
     $allRepos = array_unique($allRepos);
     sort($allRepos);
 
-    echo json_encode(['repos' => $allRepos]);
+    // Cache the repos
+    cacheRepos($allRepos);
+
+    echo json_encode([
+        'repos' => $allRepos,
+        'cached' => false
+    ]);
 }
 
 function handleGetPRs() {

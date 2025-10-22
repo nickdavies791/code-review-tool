@@ -1300,3 +1300,13 @@ body::after {
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   white-space: pre-wrap;
 }
+
+/* Refresh button spin animation */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

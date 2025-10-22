@@ -23,10 +23,11 @@ const customGuidelines = ref('')
 const guidelinesFileName = ref('')
 
 // Fetch user's GitHub repositories
-const fetchUserRepos = async () => {
+const fetchUserRepos = async (refresh = false) => {
   loadingRepos.value = true
   try {
-    const response = await axios.get('/api/repos')
+    const url = refresh ? '/api/repos?refresh=true' : '/api/repos'
+    const response = await axios.get(url)
     userRepos.value = response.data.repos || []
   } catch (err) {
     console.error('Failed to fetch repos:', err)
@@ -34,6 +35,11 @@ const fetchUserRepos = async () => {
   } finally {
     loadingRepos.value = false
   }
+}
+
+// Refresh repos from GitHub API
+const refreshRepos = () => {
+  fetchUserRepos(true)
 }
 
 // Load favorite repos from localStorage
@@ -331,6 +337,13 @@ const clearAllFavorites = () => {
           </button>
         </div>
         <div class="header-icons">
+          <button class="icon-btn" @click="refreshRepos" title="Refresh repositories" :disabled="loadingRepos">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ 'spin': loadingRepos }">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
           <button class="icon-btn" @click="openSettings" title="Settings">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
